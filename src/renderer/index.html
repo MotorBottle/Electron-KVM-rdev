@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KVM Client</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="title-bar">
+                <h1>KVM Remote Control</h1>
+            </div>
+            <div class="controls">
+                <div class="device-controls">
+                    <label>设备:</label>
+                    <select id="videoDevices" class="device-select">
+                        <option value="">Select Video Device</option>
+                    </select>
+                    <label>分辨率:</label>
+                    <select id="resolutionSelect" class="device-select">
+                        <option value="">Select Resolution</option>
+                    </select>
+                    <label>FPS:</label>
+                    <select id="fpsSelect" class="device-select">
+                        <option value="">Select FPS</option>
+                    </select>
+                    <button id="refreshDevices" class="btn btn-secondary">Refresh</button>
+                    <button id="startVideo" class="btn btn-primary">Start Video</button>
+                    <button id="stopVideo" class="btn btn-secondary" disabled>Stop Video</button>
+                </div>
+                <div class="hid-controls">
+                    <select id="hidDevices" class="device-select">
+                        <option value="">Select HID Device</option>
+                    </select>
+                    <button id="connectHID" class="btn btn-primary">Connect HID</button>
+                    <button id="disconnectHID" class="btn btn-secondary" disabled>Disconnect HID</button>
+                </div>
+                <button id="sidebarToggle" class="btn sidebar-toggle">Settings</button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="video-container">
+                <div id="videoPlaceholder" class="video-placeholder">
+                    <p>Select video device and click Start Video</p>
+                </div>
+                <video id="videoElement" class="video-stream" autoplay playsinline muted style="display: none;"></video>
+            </div>
+            
+            <div class="info-panel">
+                <div class="sidebar-header">
+                    <button id="closeSidebar" class="btn btn-fold">›</button>
+                    <h2>Settings</h2>
+                </div>
+                <div class="status">
+                    <div class="status-item">
+                        <span class="status-label">Video:</span>
+                        <span id="videoStatus" class="status-value">Disconnected</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">HID:</span>
+                        <span id="hidStatus" class="status-value">Disconnected</span>
+                    </div>
+                </div>
+                
+                <div class="mouse-mode-controls">
+                    <h3>Mouse Mode</h3>
+                    <div class="mode-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="mouseModeToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span id="mouseModeLabel" class="mode-label">Absolute</span>
+                    </div>
+                    <p class="mode-description" id="mouseModeDescription">Click to send absolute mouse positions</p>
+                </div>
+                
+                <div class="test-controls">
+                    <h3>Test Controls</h3>
+                    <div class="test-buttons">
+                        <button id="testMouse" class="btn btn-test">Test Mouse Click</button>
+                        <button id="testKeyboard" class="btn btn-test">Test Keyboard (A)</button>
+                        <button id="resetDevices" class="btn btn-warning">Reset Devices</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <div class="mouse-capture-overlay" id="mouseCaptureOverlay" style="display: none;">
+            <div class="mouse-capture-info">
+                <p>Mouse and keyboard captured</p>
+                <p>Press ESC to release</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
