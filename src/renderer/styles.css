@@ -31,6 +31,12 @@ body {
     border-bottom: 1px solid #404040;
     z-index: 1000;
     transition: opacity 0.3s ease;
+    pointer-events: auto;
+}
+
+.header.hidden {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .title-bar {
@@ -239,13 +245,15 @@ body {
     color: white;
 }
 
-.mouse-mode-controls {
+.mouse-mode-controls,
+.scroll-controls {
     padding-bottom: 24px;
     border-bottom: 1px solid #404040;
     margin-bottom: 24px;
 }
 
-.mouse-mode-controls h3 {
+.mouse-mode-controls h3,
+.scroll-controls h3 {
     font-size: 16px;
     margin-bottom: 16px;
     color: #ffffff;
@@ -353,11 +361,6 @@ input:checked + .toggle-slider:before {
 
 .info-panel.visible {
     transform: translateX(0);
-}
-
-.header.hidden {
-    opacity: 0;
-    pointer-events: none;
 }
 
 .sidebar-toggle {

@@ -8,6 +8,8 @@ class KVMClient {
         this.sidebarVisible = false;
         this.headerVisible = true;
         this.hideTimer = null;
+        this.mouseButtonsPressed = 0; // Track which buttons are pressed
+        this.reverseScroll = false; // Natural scrolling direction
         
         // Common resolutions (from HttpVideo.html)
         this.COMMON_RESOLUTIONS = [
@@ -16,6 +18,7 @@ class KVMClient {
         
         this.initializeElements();
         this.bindEvents();
+        this.setupGlobalKeyHandler();
         this.initializeVideo();
     }
 
@@ -34,12 +37,20 @@ class KVMClient {
         this.disconnectHIDBtn = document.getElementById('disconnectHID');
         this.testMouseBtn = document.getElementById('testMouse');
         this.testKeyboardBtn = document.getElementById('testKeyboard');
+        this.testF3Btn = document.getElementById('testF3');
+        this.testF11Btn = document.getElementById('testF11');
+        this.resetKeysBtn = document.getElementById('resetKeys');
         this.resetDevicesBtn = document.getElementById('resetDevices');
         
         // Mouse mode controls
         this.mouseModeToggle = document.getElementById('mouseModeToggle');
         this.mouseModeLabel = document.getElementById('mouseModeLabel');
         this.mouseModeDescription = document.getElementById('mouseModeDescription');
+        
+        // Scroll controls
+        this.scrollReverseToggle = document.getElementById('scrollReverseToggle');
+        this.scrollDirectionLabel = document.getElementById('scrollDirectionLabel');
+        this.scrollDirectionDescription = document.getElementById('scrollDirectionDescription');
         
         // Status elements
         this.videoStatus = document.getElementById('videoStatus');
@@ -77,41 +88,110 @@ class KVMClient {
         // Mouse mode toggle
         this.mouseModeToggle.addEventListener('change', () => this.toggleMouseMode());
         
+        // Scroll direction toggle
+        this.scrollReverseToggle.addEventListener('change', () => this.toggleScrollDirection());
+        
         // Test controls
         this.testMouseBtn.addEventListener('click', () => this.testMouse());
         this.testKeyboardBtn.addEventListener('click', () => this.testKeyboard());
+        this.testF3Btn.addEventListener('click', () => this.testFunctionKey('F3'));
+        this.testF11Btn.addEventListener('click', () => this.testFunctionKey('F11'));
+        this.resetKeysBtn.addEventListener('click', () => this.resetKeys());
         this.resetDevicesBtn.addEventListener('click', () => this.resetDevices());
         
         // Video stream mouse/keyboard capture
-        this.videoElement.addEventListener('click', () => this.toggleMouseCapture());
+        this.videoElement.addEventListener('click', (e) => {
+            if (!this.mouseCaptured) {
+                // Toggle capture mode
+                this.toggleMouseCapture();
+                e.preventDefault();
+            }
+            // Note: Mouse clicks when captured are handled by mousedown/mouseup events
+        });
         
-        // Global keyboard handler for escape
+        // Global keyboard handler for control exit and key capture
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && this.mouseCaptured) {
-                this.releaseMouseCapture();
+            // Debug logging for F3 and F11
+            if (['F3', 'F11'].includes(e.key)) {
+                console.log(`Document keydown: ${e.key}, captured: ${this.mouseCaptured}, hidConnected: ${this.hidConnected}`);
+            }
+            
+            // New quit shortcut: Ctrl+Alt (instead of just Escape)
+            if (e.ctrlKey && e.altKey && this.mouseCaptured) {
+                this.releaseMouseCaptureWithKeyReset();
+                e.preventDefault();
+                return;
             }
             
             if (this.mouseCaptured && this.hidConnected) {
+                // Prevent default for ALL keys during capture to catch system keys
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
                 this.handleKeyboardEvent(e);
+            }
+        });
+        
+        // Handle pointer lock changes
+        document.addEventListener('pointerlockchange', () => {
+            if (!document.pointerLockElement && this.mouseCaptured && this.mouseMode === 'relative') {
+                // Pointer lock was lost, release capture with key reset
+                this.releaseMouseCaptureWithKeyReset();
             }
         });
         
         document.addEventListener('keyup', (e) => {
             if (this.mouseCaptured && this.hidConnected) {
+                // Prevent default for ALL keys during capture
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
                 this.handleKeyboardEvent(e);
             }
         });
         
-        // Mouse capture overlay events
+        // Mouse capture overlay events (for relative mode)
         this.mouseCaptureOverlay.addEventListener('mousemove', (e) => {
-            if (this.mouseCaptured && this.hidConnected) {
+            if (this.mouseCaptured && this.hidConnected && this.mouseMode === 'relative') {
                 this.handleMouseMove(e);
             }
         });
         
-        this.mouseCaptureOverlay.addEventListener('click', (e) => {
+        // Video element mouse events (for absolute mode)
+        this.videoElement.addEventListener('mousemove', (e) => {
             if (this.mouseCaptured && this.hidConnected && this.mouseMode === 'absolute') {
-                this.handleMouseClick(e);
+                // In absolute mode, send position updates on mouse move
+                this.handleMouseMove(e);
+            }
+        });
+        
+        // Mouse button events on video element
+        this.videoElement.addEventListener('mousedown', (e) => {
+            if (this.mouseCaptured && this.hidConnected) {
+                this.handleMouseEvent(e);
+                e.preventDefault();
+            }
+        });
+        
+        this.videoElement.addEventListener('mouseup', (e) => {
+            if (this.mouseCaptured && this.hidConnected) {
+                this.handleMouseEvent(e);
+                e.preventDefault();
+            }
+        });
+        
+        // Mouse wheel events on video element
+        this.videoElement.addEventListener('wheel', (e) => {
+            if (this.mouseCaptured && this.hidConnected) {
+                this.handleMouseWheel(e);
+                e.preventDefault();
+            }
+        });
+        
+        // Context menu prevention
+        this.videoElement.addEventListener('contextmenu', (e) => {
+            if (this.mouseCaptured) {
+                e.preventDefault();
             }
         });
         
@@ -130,6 +210,19 @@ class KVMClient {
         this.mouseCaptureOverlay.addEventListener('wheel', (e) => {
             if (this.mouseCaptured && this.hidConnected) {
                 this.handleMouseWheel(e);
+                e.preventDefault();
+            }
+        });
+        
+        // Additional drag support for overlay
+        this.mouseCaptureOverlay.addEventListener('drag', (e) => {
+            if (this.mouseCaptured && this.hidConnected) {
+                e.preventDefault();
+            }
+        });
+        
+        this.mouseCaptureOverlay.addEventListener('dragstart', (e) => {
+            if (this.mouseCaptured) {
                 e.preventDefault();
             }
         });
@@ -160,6 +253,41 @@ class KVMClient {
         }
     }
 
+    setupGlobalKeyHandler() {
+        // Listen for global key events from main process (F3, F11, ESC)
+        if (window.electronAPI && window.electronAPI.onGlobalKeyPressed) {
+            window.electronAPI.onGlobalKeyPressed((event, data) => {
+                console.log('Global key intercepted:', data);
+                
+                // Only handle these keys if mouse is captured and HID is connected
+                if (this.mouseCaptured && this.hidConnected) {
+                    // Create a synthetic keyboard event
+                    const syntheticEvent = {
+                        key: data.key,
+                        code: data.code,
+                        type: 'keydown',
+                        metaKey: false,
+                        ctrlKey: false,
+                        altKey: false,
+                        shiftKey: false,
+                        preventDefault: () => {},
+                        stopPropagation: () => {},
+                        stopImmediatePropagation: () => {}
+                    };
+                    
+                    // Send the key event to HID
+                    this.handleKeyboardEvent(syntheticEvent);
+                    
+                    // Also send keyup event after a short delay
+                    setTimeout(() => {
+                        const keyupEvent = { ...syntheticEvent, type: 'keyup' };
+                        this.handleKeyboardEvent(keyupEvent);
+                    }, 50);
+                }
+            });
+        }
+    }
+
     async initializeVideo() {
         // Check WebRTC support
         if (!navigator.mediaDevices?.enumerateDevices) {
@@ -179,6 +307,7 @@ class KVMClient {
 
         await this.loadHIDDevices();
         this.updateMouseModeDisplay();
+        this.updateScrollDirectionDisplay();
     }
 
     async refreshVideoDevices() {
@@ -502,6 +631,45 @@ class KVMClient {
         }
     }
 
+    async testFunctionKey(key) {
+        if (!this.hidConnected) {
+            alert('Please connect HID device first');
+            return;
+        }
+
+        try {
+            console.log(`Testing function key: ${key}`);
+            await window.electronAPI.sendKeyboardEvent({
+                type: 'keydown',
+                key: key,
+                code: key
+            });
+            
+            setTimeout(async () => {
+                await window.electronAPI.sendKeyboardEvent({
+                    type: 'keyup',
+                    key: key,
+                    code: key
+                });
+            }, 100);
+        } catch (error) {
+            console.error(`Error testing ${key}:`, error);
+        }
+    }
+
+    async resetKeys() {
+        if (this.hidConnected) {
+            try {
+                await window.electronAPI.sendKeyboardEvent({ type: 'reset' });
+                console.log('Manual keyboard reset triggered');
+            } catch (error) {
+                console.error('Error resetting keyboard:', error);
+            }
+        } else {
+            alert('Please connect HID device first');
+        }
+    }
+
     async resetDevices() {
         if (this.hidConnected) {
             try {
@@ -531,16 +699,54 @@ class KVMClient {
         }
     }
 
-    captureMouseKeyboard() {
-        this.mouseCaptured = true;
-        this.mouseCaptureOverlay.style.display = 'block';
-        document.body.style.cursor = 'none';
+
+    async releaseMouseCaptureWithKeyReset() {
+        // Send key reset to release any stuck modifier keys
+        if (this.hidConnected) {
+            try {
+                await window.electronAPI.sendKeyboardEvent({
+                    type: 'reset'
+                });
+                console.log('Sent keyboard reset to release stuck keys');
+            } catch (error) {
+                console.error('Error sending keyboard reset:', error);
+            }
+        }
+        
+        // Then release mouse capture normally
+        this.releaseMouseCapture();
     }
 
     releaseMouseCapture() {
         this.mouseCaptured = false;
         this.mouseCaptureOverlay.style.display = 'none';
         document.body.style.cursor = 'default';
+        
+        // Exit pointer lock if active
+        if (document.pointerLockElement) {
+            document.exitPointerLock();
+        }
+        
+        // Restore all header and video container styles
+        const videoContainer = document.querySelector('.video-container');
+        
+        // Restore header
+        this.header.style.display = '';
+        this.header.style.position = '';
+        this.header.style.top = '';
+        this.header.style.pointerEvents = '';
+        this.header.classList.remove('hidden');
+        this.headerVisible = true;
+        
+        // Restore video container to original state
+        videoContainer.style.position = '';
+        videoContainer.style.top = '';
+        videoContainer.style.left = '';
+        videoContainer.style.width = '';
+        videoContainer.style.height = '';
+        videoContainer.style.zIndex = '';
+        
+        console.log('macOS: Header and video container fully restored');
     }
 
     async handleMouseMove(event) {
@@ -561,15 +767,34 @@ class KVMClient {
                     console.error('Error sending mouse move:', error);
                 }
             }
+        } else if (this.mouseMode === 'absolute') {
+            // Send absolute position for absolute mode
+            const videoRect = this.videoElement.getBoundingClientRect();
+            const x = Math.round((event.clientX - videoRect.left) / videoRect.width * 0x7FFF);
+            const y = Math.round((event.clientY - videoRect.top) / videoRect.height * 0x7FFF);
+
+            try {
+                await window.electronAPI.sendMouseEvent({
+                    type: 'abs',
+                    x: x,
+                    y: y,
+                    buttonsPressed: this.mouseButtonsPressed // Include button state for dragging
+                });
+            } catch (error) {
+                console.error('Error sending absolute mouse position:', error);
+            }
         }
     }
 
     async handleMouseClick(event) {
         if (!this.hidConnected || this.mouseMode !== 'absolute') return;
 
-        const rect = this.mouseCaptureOverlay.getBoundingClientRect();
-        const x = Math.round((event.clientX - rect.left) / rect.width * 65535);
-        const y = Math.round((event.clientY - rect.top) / rect.height * 65535);
+        // For absolute mode, use video element bounds, not overlay
+        const videoRect = this.videoElement.getBoundingClientRect();
+        const x = Math.round((event.clientX - videoRect.left) / videoRect.width * 0x7FFF);
+        const y = Math.round((event.clientY - videoRect.top) / videoRect.height * 0x7FFF);
+
+        console.log('Absolute mouse click:', { x, y, clientX: event.clientX, clientY: event.clientY });
 
         try {
             await window.electronAPI.sendMouseEvent({
@@ -585,12 +810,19 @@ class KVMClient {
     async handleMouseEvent(event) {
         if (!this.hidConnected) return;
 
-        const eventType = event.type === 'mousedown' ? 'mousedown' : 'mouseup';
+        const buttonMask = this.getHIDButtonMask(event.button);
+        
+        if (event.type === 'mousedown') {
+            this.mouseButtonsPressed |= buttonMask;
+        } else if (event.type === 'mouseup') {
+            this.mouseButtonsPressed &= ~buttonMask;
+        }
         
         try {
             await window.electronAPI.sendMouseEvent({
-                type: eventType,
-                button: event.button
+                type: event.type === 'mousedown' ? 'mousedown' : 'mouseup',
+                button: event.button,
+                buttonsPressed: this.mouseButtonsPressed
             });
         } catch (error) {
             console.error('Error sending mouse event:', error);
@@ -603,10 +835,23 @@ class KVMClient {
         if (!this.hidConnected) return;
 
         try {
-            await window.electronAPI.sendMouseEvent({
-                type: 'wheel',
-                delta: event.deltaY
-            });
+            // Apply scroll direction preference
+            const scrollMultiplier = this.reverseScroll ? -1 : 1;
+            
+            // Send wheel events for both X and Y scroll
+            if (Math.abs(event.deltaY) > 0) {
+                await window.electronAPI.sendMouseEvent({
+                    type: 'wheel',
+                    delta: event.deltaY * scrollMultiplier
+                });
+            }
+            if (Math.abs(event.deltaX) > 0) {
+                // Some systems support horizontal scrolling
+                await window.electronAPI.sendMouseEvent({
+                    type: 'wheel',
+                    delta: event.deltaX * scrollMultiplier
+                });
+            }
         } catch (error) {
             console.error('Error sending mouse wheel:', error);
         }
@@ -617,16 +862,30 @@ class KVMClient {
 
         const eventType = event.type === 'keydown' ? 'keydown' : 'keyup';
         
+        // Log key events for debugging
+        console.log('Key event:', {
+            type: eventType,
+            key: event.key,
+            code: event.code,
+            metaKey: event.metaKey,
+            ctrlKey: event.ctrlKey,
+            altKey: event.altKey,
+            shiftKey: event.shiftKey
+        });
+        
         try {
             await window.electronAPI.sendKeyboardEvent({
                 type: eventType,
-                key: event.key
+                key: event.key,
+                code: event.code,
+                metaKey: event.metaKey,
+                ctrlKey: event.ctrlKey,
+                altKey: event.altKey,
+                shiftKey: event.shiftKey
             });
         } catch (error) {
             console.error('Error sending keyboard event:', error);
         }
-        
-        event.preventDefault();
     }
 
     updateVideoStatus() {
@@ -674,6 +933,9 @@ class KVMClient {
     }
 
     handleHeaderAutoHide(event) {
+        // Don't auto-show header when mouse is captured
+        if (this.mouseCaptured) return;
+        
         this.showHeader();
         clearTimeout(this.hideTimer);
         this.hideTimer = setTimeout(() => this.hideHeader(), 2000);
@@ -702,6 +964,74 @@ class KVMClient {
             this.header.classList.add('hidden');
             this.headerVisible = false;
         }
+    }
+
+    captureMouseKeyboard() {
+        this.mouseCaptured = true;
+        
+        // Multiple approaches for macOS compatibility
+        const videoContainer = document.querySelector('.video-container');
+        
+        // 1. Hide header completely
+        this.header.style.display = 'none';
+        this.headerVisible = false;
+        
+        // 2. Remove header from document flow temporarily
+        this.header.style.position = 'absolute';
+        this.header.style.top = '-200px';
+        this.header.style.pointerEvents = 'none';
+        
+        // 3. Ensure video container fills entire viewport
+        videoContainer.style.position = 'fixed';
+        videoContainer.style.top = '0';
+        videoContainer.style.left = '0';
+        videoContainer.style.width = '100vw';
+        videoContainer.style.height = '100vh';
+        videoContainer.style.zIndex = '9999';
+        
+        console.log('Header fully removed and video extended for macOS control');
+        
+        if (this.mouseMode === 'relative') {
+            // Relative mode: hide cursor and show overlay for capturing
+            this.mouseCaptureOverlay.style.display = 'block';
+            document.body.style.cursor = 'none';
+            
+            // Request pointer lock for relative mode
+            this.videoElement.requestPointerLock();
+        } else {
+            // Absolute mode: keep cursor visible, just enable click handling
+            this.mouseCaptureOverlay.style.display = 'none';
+            document.body.style.cursor = 'default';
+        }
+    }
+
+    toggleScrollDirection() {
+        this.reverseScroll = this.scrollReverseToggle.checked;
+        this.updateScrollDirectionDisplay();
+    }
+
+    updateScrollDirectionDisplay() {
+        if (this.reverseScroll) {
+            this.scrollDirectionLabel.textContent = 'Reversed';
+            this.scrollDirectionDescription.textContent = 'Traditional scrolling (like Windows)';
+            this.scrollReverseToggle.checked = true;
+        } else {
+            this.scrollDirectionLabel.textContent = 'Natural';
+            this.scrollDirectionDescription.textContent = 'Natural scrolling (like macOS/mobile)';
+            this.scrollReverseToggle.checked = false;
+        }
+    }
+
+    getHIDButtonMask(domButton) {
+        // Convert DOM button index to HID button mask
+        const buttonMap = {
+            0: 1,  // Left button
+            1: 4,  // Middle button  
+            2: 2,  // Right button
+            3: 8,  // Back button
+            4: 16  // Forward button
+        };
+        return buttonMap[domButton] || 1;
     }
 }
 

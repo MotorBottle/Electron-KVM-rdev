@@ -12,5 +12,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   connectHIDDevice: (devicePath) => ipcRenderer.invoke('connect-hid-device', devicePath),
   disconnectHIDDevice: () => ipcRenderer.invoke('disconnect-hid-device'),
   sendMouseEvent: (data) => ipcRenderer.invoke('send-mouse-event', data),
-  sendKeyboardEvent: (data) => ipcRenderer.invoke('send-keyboard-event', data)
+  sendKeyboardEvent: (data) => ipcRenderer.invoke('send-keyboard-event', data),
+  
+  // Global key events from main process
+  onGlobalKeyPressed: (callback) => ipcRenderer.on('global-key-pressed', callback)
 });

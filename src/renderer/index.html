@@ -77,11 +77,26 @@
                     <p class="mode-description" id="mouseModeDescription">Click to send absolute mouse positions</p>
                 </div>
                 
+                <div class="scroll-controls">
+                    <h3>Scroll Direction</h3>
+                    <div class="mode-toggle">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="scrollReverseToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span id="scrollDirectionLabel" class="mode-label">Natural</span>
+                    </div>
+                    <p class="mode-description" id="scrollDirectionDescription">Natural scrolling (like macOS/mobile)</p>
+                </div>
+                
                 <div class="test-controls">
                     <h3>Test Controls</h3>
                     <div class="test-buttons">
                         <button id="testMouse" class="btn btn-test">Test Mouse Click</button>
                         <button id="testKeyboard" class="btn btn-test">Test Keyboard (A)</button>
+                        <button id="testF3" class="btn btn-test">Test F3</button>
+                        <button id="testF11" class="btn btn-test">Test F11</button>
+                        <button id="resetKeys" class="btn btn-warning">Reset All Keys</button>
                         <button id="resetDevices" class="btn btn-warning">Reset Devices</button>
                     </div>
                 </div>
@@ -91,7 +106,11 @@
         <div class="mouse-capture-overlay" id="mouseCaptureOverlay" style="display: none;">
             <div class="mouse-capture-info">
                 <p>Mouse and keyboard captured</p>
-                <p>Press ESC to release</p>
+                <p>Press Ctrl+Alt to release</p>
+                <p style="font-size: 11px; opacity: 0.8; margin-top: 8px;">
+                    Note: F3/F11 may be handled by macOS.<br>
+                    Use test buttons if needed.
+                </p>
             </div>
         </div>
     </div>
