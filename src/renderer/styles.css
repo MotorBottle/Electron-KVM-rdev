@@ -438,15 +438,15 @@ input:checked + .toggle-slider:before {
     background-color: #2d2d2d;
     border-radius: 8px;
     padding: 16px;
-    width: 95vw;
-    max-width: 1200px;
+    width: auto;
+    max-width: 95vw;
     max-height: 90vh;
     overflow-y: auto;
     border: 1px solid #404040;
     position: relative;
     resize: both;
-    min-width: 1000px;
-    min-height: 500px;
+    min-width: 800px;
+    min-height: 400px;
 }
 
 .virtual-keyboard-header {
@@ -505,7 +505,7 @@ input:checked + .toggle-slider:before {
 
 .virtual-keyboard {
     display: flex;
-    gap: 20px;
+    gap: 16px;
     align-items: flex-start;
 }
 
@@ -521,10 +521,17 @@ input:checked + .toggle-slider:before {
 
 .nav-keyboard {
     min-width: 160px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-self: stretch;
 }
 
 .numpad-keyboard {
     min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
 }
 
 .keyboard-row {
@@ -670,7 +677,7 @@ input:checked + .toggle-slider:before {
 
 /* Arrow Keys Section */
 .arrow-keys-spacer {
-    height: 20px;
+    height: 28px;
 }
 
 .arrow-keys-cluster {
@@ -701,7 +708,7 @@ input:checked + .toggle-slider:before {
     padding: 8px;
     border-radius: 6px;
     border: 1px solid #555;
-    margin-top: 8px;
+    position: relative;
 }
 
 .numpad-row {
@@ -738,8 +745,10 @@ input:checked + .toggle-slider:before {
 }
 
 .numpad-enter {
-    right: 0;
-    top: 0;
+    position: absolute;
+    right: -44px;
+    height: 76px;
+    width: 40px;
 }
 
 .numpad-row-3 {
