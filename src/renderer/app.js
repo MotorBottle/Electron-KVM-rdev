@@ -42,6 +42,19 @@ class KVMClient {
         this.resetKeysBtn = document.getElementById('resetKeys');
         this.resetDevicesBtn = document.getElementById('resetDevices');
         
+        // Quick control buttons
+        this.sendCADBtn = document.getElementById('sendCAD');
+        this.virtualKeyboardBtn = document.getElementById('virtualKeyboard');
+        
+        // Virtual keyboard elements
+        this.virtualKeyboardModal = document.getElementById('virtualKeyboardModal');
+        this.virtualKeyboardContent = document.getElementById('virtualKeyboardContent');
+        this.virtualKeyboardHeader = document.getElementById('virtualKeyboardHeader');
+        this.closeVirtualKeyboardBtn = document.getElementById('closeVirtualKeyboard');
+        this.combinationKeys = document.getElementById('combinationKeys');
+        this.sendCombinationBtn = document.getElementById('sendCombination');
+        this.clearCombinationBtn = document.getElementById('clearCombination');
+        
         // Mouse mode controls
         this.mouseModeToggle = document.getElementById('mouseModeToggle');
         this.mouseModeLabel = document.getElementById('mouseModeLabel');
@@ -98,6 +111,13 @@ class KVMClient {
         this.testF11Btn.addEventListener('click', () => this.testFunctionKey('F11'));
         this.resetKeysBtn.addEventListener('click', () => this.resetKeys());
         this.resetDevicesBtn.addEventListener('click', () => this.resetDevices());
+        
+        // Quick control buttons
+        this.sendCADBtn.addEventListener('click', () => this.sendCtrlAltDelete());
+        this.virtualKeyboardBtn.addEventListener('click', () => this.showVirtualKeyboard());
+        this.closeVirtualKeyboardBtn.addEventListener('click', () => this.hideVirtualKeyboard());
+        this.sendCombinationBtn.addEventListener('click', () => this.sendCurrentCombination());
+        this.clearCombinationBtn.addEventListener('click', () => this.clearCombination());
         
         // Video stream mouse/keyboard capture
         this.videoElement.addEventListener('click', (e) => {
@@ -251,6 +271,9 @@ class KVMClient {
                 this.refreshVideoDevices();
             });
         }
+        
+        // Virtual keyboard event listeners
+        this.setupVirtualKeyboard();
     }
 
     setupGlobalKeyHandler() {
@@ -308,6 +331,9 @@ class KVMClient {
         await this.loadHIDDevices();
         this.updateMouseModeDisplay();
         this.updateScrollDirectionDisplay();
+        
+        // Start periodic HID device monitoring
+        this.startHIDMonitoring();
     }
 
     async refreshVideoDevices() {
@@ -533,12 +559,38 @@ class KVMClient {
             const devices = await window.electronAPI.getHIDDevices();
             this.hidDevicesSelect.innerHTML = '<option value="">Select HID Device</option>';
             
+            let osrbotDevice = null;
+            
             devices.forEach(device => {
                 const option = document.createElement('option');
                 option.value = device.path;
                 option.textContent = `${device.manufacturer || 'Unknown'} ${device.product || 'Device'} (${device.path})`;
                 this.hidDevicesSelect.appendChild(option);
+                
+                // Look for OSRBOT KVM device for auto-connection
+                if (device.product && device.product.includes('OSRBOT') && device.product.includes('KVM')) {
+                    osrbotDevice = device;
+                }
             });
+            
+            // Auto-connect to OSRBOT KVM device if found and not already connected
+            if (osrbotDevice && !this.hidConnected) {
+                console.log('OSRBOT KVM device found, auto-connecting...', osrbotDevice);
+                this.hidDevicesSelect.value = osrbotDevice.path;
+                
+                // Show user feedback about auto-connection attempt
+                this.showAutoConnectNotification('OSRBOT KVM device detected, connecting...');
+                
+                try {
+                    await this.connectHID();
+                    if (this.hidConnected) {
+                        this.showAutoConnectNotification('✅ OSRBOT KVM auto-connected successfully!', 'success');
+                    }
+                } catch (error) {
+                    console.error('Auto-connect failed:', error);
+                    this.showAutoConnectNotification('❌ OSRBOT KVM auto-connect failed', 'error');
+                }
+            }
         } catch (error) {
             console.error('Error loading HID devices:', error);
         }
@@ -559,6 +611,9 @@ class KVMClient {
                 
                 this.connectHIDBtn.disabled = true;
                 this.disconnectHIDBtn.disabled = false;
+                
+                // Stop monitoring when successfully connected
+                this.stopHIDMonitoring();
             } else {
                 alert(`Failed to connect HID device: ${result.error}`);
             }
@@ -580,6 +635,9 @@ class KVMClient {
             if (this.mouseCaptured) {
                 this.releaseMouseCapture();
             }
+            
+            // Restart monitoring when disconnected to auto-reconnect if device comes back
+            this.startHIDMonitoring();
         } catch (error) {
             console.error('Error disconnecting HID:', error);
         }
@@ -896,6 +954,10 @@ class KVMClient {
     updateHIDStatus() {
         this.hidStatus.textContent = this.hidConnected ? 'Connected' : 'Disconnected';
         this.hidStatus.setAttribute('data-status', this.hidConnected ? 'connected' : 'disconnected');
+        
+        // Enable/disable quick control buttons based on HID connection
+        this.sendCADBtn.disabled = !this.hidConnected;
+        this.virtualKeyboardBtn.disabled = !this.hidConnected;
     }
 
     updateVideoDisplay() {
@@ -1032,6 +1094,458 @@ class KVMClient {
             4: 16  // Forward button
         };
         return buttonMap[domButton] || 1;
+    }
+
+    async sendCtrlAltDelete() {
+        if (!this.hidConnected) {
+            alert('Please connect HID device first');
+            return;
+        }
+
+        try {
+            console.log('Sending Ctrl+Alt+Delete');
+            
+            // Send the key combination in steps to avoid conflicts
+            // First press modifiers
+            await window.electronAPI.sendKeyboardEvent({
+                type: 'keydown',
+                key: 'Control',
+                code: 'ControlLeft',
+                ctrlKey: true,
+                altKey: false,
+                metaKey: false,
+                shiftKey: false
+            });
+            
+            await new Promise(resolve => setTimeout(resolve, 10));
+            
+            await window.electronAPI.sendKeyboardEvent({
+                type: 'keydown',
+                key: 'Alt',
+                code: 'AltLeft',
+                ctrlKey: true,
+                altKey: true,
+                metaKey: false,
+                shiftKey: false
+            });
+            
+            await new Promise(resolve => setTimeout(resolve, 10));
+            
+            // Then press Delete
+            await window.electronAPI.sendKeyboardEvent({
+                type: 'keydown',
+                key: 'Delete',
+                code: 'Delete',
+                ctrlKey: true,
+                altKey: true,
+                metaKey: false,
+                shiftKey: false
+            });
+            
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+            // Release in reverse order
+            await window.electronAPI.sendKeyboardEvent({
+                type: 'keyup',
+                key: 'Delete',
+                code: 'Delete',
+                ctrlKey: true,
+                altKey: true,
+                metaKey: false,
+                shiftKey: false
+            });
+            
+            await new Promise(resolve => setTimeout(resolve, 10));
+            
+            await window.electronAPI.sendKeyboardEvent({
+                type: 'keyup',
+                key: 'Alt',
+                code: 'AltLeft',
+                ctrlKey: true,
+                altKey: false,
+                metaKey: false,
+                shiftKey: false
+            });
+            
+            await new Promise(resolve => setTimeout(resolve, 10));
+            
+            await window.electronAPI.sendKeyboardEvent({
+                type: 'keyup',
+                key: 'Control',
+                code: 'ControlLeft',
+                ctrlKey: false,
+                altKey: false,
+                metaKey: false,
+                shiftKey: false
+            });
+            
+            console.log('Ctrl+Alt+Delete sequence completed');
+            
+        } catch (error) {
+            console.error('Error sending Ctrl+Alt+Delete:', error);
+            // Try to reset keyboard state on error
+            try {
+                await window.electronAPI.sendKeyboardEvent({ type: 'reset' });
+            } catch (resetError) {
+                console.error('Error resetting keyboard after CAD failure:', resetError);
+            }
+        }
+    }
+
+    showVirtualKeyboard() {
+        this.virtualKeyboardModal.style.display = 'flex';
+        // Reset position when opening
+        this.virtualKeyboardContent.style.position = '';
+        this.virtualKeyboardContent.style.left = '';
+        this.virtualKeyboardContent.style.top = '';
+        this.virtualKeyboardContent.style.margin = '';
+        // Initialize display
+        this.updateCombinationDisplay();
+    }
+
+    hideVirtualKeyboard() {
+        this.virtualKeyboardModal.style.display = 'none';
+        // Reset any active modifier states
+        this.resetVirtualKeyboardModifiers();
+    }
+
+    setupVirtualKeyboard() {
+        this.activeModifiers = new Set();
+        this.pendingKeys = [];
+        
+        // Make keyboard draggable
+        this.makeKeyboardDraggable();
+        
+        // Add event listeners to all virtual keyboard buttons
+        const keyButtons = this.virtualKeyboardModal.querySelectorAll('.key-btn');
+        
+        keyButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                this.handleVirtualKey(e.target);
+            });
+        });
+        
+        // Close modal when clicking outside
+        this.virtualKeyboardModal.addEventListener('click', (e) => {
+            if (e.target === this.virtualKeyboardModal) {
+                this.hideVirtualKeyboard();
+            }
+        });
+    }
+
+    makeKeyboardDraggable() {
+        let isDragging = false;
+        let dragStartX, dragStartY, initialX, initialY;
+        
+        this.virtualKeyboardHeader.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            
+            const rect = this.virtualKeyboardContent.getBoundingClientRect();
+            initialX = rect.left;
+            initialY = rect.top;
+            
+            document.addEventListener('mousemove', handleDrag);
+            document.addEventListener('mouseup', handleDragEnd);
+            e.preventDefault();
+        });
+        
+        const handleDrag = (e) => {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - dragStartX;
+            const deltaY = e.clientY - dragStartY;
+            
+            const newX = initialX + deltaX;
+            const newY = initialY + deltaY;
+            
+            this.virtualKeyboardContent.style.position = 'fixed';
+            this.virtualKeyboardContent.style.left = `${newX}px`;
+            this.virtualKeyboardContent.style.top = `${newY}px`;
+            this.virtualKeyboardContent.style.margin = '0';
+        };
+        
+        const handleDragEnd = () => {
+            isDragging = false;
+            document.removeEventListener('mousemove', handleDrag);
+            document.removeEventListener('mouseup', handleDragEnd);
+        };
+    }
+
+    async handleVirtualKey(button) {
+        if (!this.hidConnected) {
+            alert('Please connect HID device first');
+            return;
+        }
+
+        const key = button.dataset.key;
+        const code = button.dataset.code || key;
+        
+        if (button.classList.contains('modifier-key')) {
+            // Toggle modifier keys
+            this.toggleVirtualModifier(button, key, code);
+        } else {
+            // For regular keys - either send immediately or add to combination
+            if (this.activeModifiers.size === 0) {
+                // No modifiers active - send immediately
+                await this.sendSingleKey(key, code);
+            } else {
+                // Modifiers active - add to combination
+                this.addToCombination(key, code);
+            }
+        }
+    }
+
+    toggleVirtualModifier(button, key, code) {
+        if (this.activeModifiers.has(code)) {
+            // Deactivate modifier
+            this.activeModifiers.delete(code);
+            button.classList.remove('active');
+        } else {
+            // Activate modifier
+            this.activeModifiers.add(code);
+            button.classList.add('active');
+        }
+        this.updateCombinationDisplay();
+    }
+
+    async sendSingleKey(key, code) {
+        try {
+            console.log(`Sending single key: ${key} (${code})`);
+
+            // Send key down
+            await window.electronAPI.sendKeyboardEvent({
+                type: 'keydown',
+                key: key,
+                code: code
+            });
+
+            // Send key up after a short delay
+            setTimeout(async () => {
+                await window.electronAPI.sendKeyboardEvent({
+                    type: 'keyup',
+                    key: key,
+                    code: code
+                });
+            }, 50);
+
+        } catch (error) {
+            console.error('Error sending single key:', error);
+        }
+    }
+
+    addToCombination(key, code) {
+        // Don't add duplicate keys
+        if (!this.pendingKeys.find(k => k.code === code)) {
+            this.pendingKeys.push({ key, code });
+            this.updateCombinationDisplay();
+        }
+    }
+
+    updateCombinationDisplay() {
+        const modifierNames = {
+            'ControlLeft': 'Ctrl',
+            'ControlRight': 'Ctrl',
+            'AltLeft': 'Alt', 
+            'AltRight': 'Alt',
+            'MetaLeft': 'Cmd',
+            'MetaRight': 'Cmd',
+            'ShiftLeft': 'Shift',
+            'ShiftRight': 'Shift',
+            'CapsLock': 'Caps'
+        };
+
+        const parts = [];
+        
+        // Add active modifiers
+        this.activeModifiers.forEach(code => {
+            if (modifierNames[code]) {
+                parts.push(modifierNames[code]);
+            }
+        });
+        
+        // Add pending keys
+        this.pendingKeys.forEach(keyObj => {
+            parts.push(keyObj.key.toUpperCase());
+        });
+
+        if (parts.length === 0) {
+            this.combinationKeys.textContent = 'None';
+            this.sendCombinationBtn.disabled = true;
+        } else {
+            this.combinationKeys.textContent = parts.join(' + ');
+            this.sendCombinationBtn.disabled = false;
+        }
+    }
+
+    async sendCurrentCombination() {
+        if (this.activeModifiers.size === 0 && this.pendingKeys.length === 0) {
+            return;
+        }
+
+        try {
+            console.log('Sending combination:', {
+                modifiers: Array.from(this.activeModifiers),
+                keys: this.pendingKeys
+            });
+
+            // If no regular keys, just send modifiers
+            if (this.pendingKeys.length === 0) {
+                for (const code of this.activeModifiers) {
+                    await window.electronAPI.sendKeyboardEvent({
+                        type: 'keydown',
+                        key: this.getKeyFromCode(code),
+                        code: code
+                    });
+                }
+                
+                setTimeout(async () => {
+                    for (const code of this.activeModifiers) {
+                        await window.electronAPI.sendKeyboardEvent({
+                            type: 'keyup',
+                            key: this.getKeyFromCode(code),
+                            code: code
+                        });
+                    }
+                }, 50);
+                return;
+            }
+
+            // Send combination with modifiers
+            for (const keyObj of this.pendingKeys) {
+                const modifiers = {
+                    ctrlKey: Array.from(this.activeModifiers).some(code => code.includes('Control')),
+                    altKey: Array.from(this.activeModifiers).some(code => code.includes('Alt')),
+                    metaKey: Array.from(this.activeModifiers).some(code => code.includes('Meta')),
+                    shiftKey: Array.from(this.activeModifiers).some(code => code.includes('Shift'))
+                };
+
+                await window.electronAPI.sendKeyboardEvent({
+                    type: 'keydown',
+                    key: keyObj.key,
+                    code: keyObj.code,
+                    ...modifiers
+                });
+
+                setTimeout(async () => {
+                    await window.electronAPI.sendKeyboardEvent({
+                        type: 'keyup',
+                        key: keyObj.key,
+                        code: keyObj.code
+                    });
+                }, 50);
+            }
+
+            // Clear combination and release modifiers after sending
+            this.clearCombination();
+            this.releaseAllModifiers();
+
+        } catch (error) {
+            console.error('Error sending combination:', error);
+        }
+    }
+
+    clearCombination() {
+        this.pendingKeys = [];
+        this.releaseAllModifiers();
+        this.updateCombinationDisplay();
+    }
+
+    releaseAllModifiers() {
+        this.activeModifiers.clear();
+        const modifierButtons = this.virtualKeyboardModal.querySelectorAll('.modifier-key');
+        modifierButtons.forEach(button => button.classList.remove('active'));
+        this.updateCombinationDisplay();
+    }
+
+    getKeyFromCode(code) {
+        const codeToKey = {
+            'ControlLeft': 'Control',
+            'ControlRight': 'Control',
+            'AltLeft': 'Alt',
+            'AltRight': 'Alt',
+            'MetaLeft': 'Meta',
+            'MetaRight': 'Meta',
+            'ShiftLeft': 'Shift',
+            'ShiftRight': 'Shift',
+            'CapsLock': 'CapsLock'
+        };
+        return codeToKey[code] || code;
+    }
+
+    resetVirtualKeyboardModifiers() {
+        this.activeModifiers.clear();
+        this.pendingKeys = [];
+        const modifierButtons = this.virtualKeyboardModal.querySelectorAll('.modifier-key');
+        modifierButtons.forEach(button => button.classList.remove('active'));
+        this.updateCombinationDisplay();
+    }
+
+    startHIDMonitoring() {
+        // Check for new HID devices every 3 seconds
+        this.hidMonitorInterval = setInterval(async () => {
+            if (!this.hidConnected) {
+                await this.loadHIDDevices();
+            }
+        }, 3000);
+        
+        console.log('HID device monitoring started - checking every 3 seconds');
+    }
+
+    stopHIDMonitoring() {
+        if (this.hidMonitorInterval) {
+            clearInterval(this.hidMonitorInterval);
+            this.hidMonitorInterval = null;
+            console.log('HID device monitoring stopped');
+        }
+    }
+
+    showAutoConnectNotification(message, type = 'info') {
+        // Create notification element if it doesn't exist
+        let notification = document.getElementById('autoConnectNotification');
+        if (!notification) {
+            notification = document.createElement('div');
+            notification.id = 'autoConnectNotification';
+            notification.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                background-color: #007acc;
+                color: white;
+                padding: 12px 16px;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: 500;
+                z-index: 1500;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                transition: all 0.3s ease;
+                max-width: 300px;
+                word-wrap: break-word;
+            `;
+            document.body.appendChild(notification);
+        }
+
+        // Update styling based on type
+        if (type === 'success') {
+            notification.style.backgroundColor = '#28a745';
+        } else if (type === 'error') {
+            notification.style.backgroundColor = '#dc3545';
+        } else {
+            notification.style.backgroundColor = '#007acc';
+        }
+
+        notification.textContent = message;
+        notification.style.display = 'block';
+        notification.style.opacity = '1';
+
+        // Auto-hide after 4 seconds
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 300);
+        }, 4000);
     }
 }
 

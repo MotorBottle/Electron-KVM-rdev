@@ -63,7 +63,8 @@ body {
 }
 
 .device-controls,
-.hid-controls {
+.hid-controls,
+.quick-controls {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -419,6 +420,378 @@ input:checked + .toggle-slider:before {
     transform: rotate(-5deg);
 }
 
+/* Virtual Keyboard Modal */
+.virtual-keyboard-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.virtual-keyboard-content {
+    background-color: #2d2d2d;
+    border-radius: 8px;
+    padding: 16px;
+    width: 95vw;
+    max-width: 1200px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border: 1px solid #404040;
+    position: relative;
+    resize: both;
+    min-width: 1000px;
+    min-height: 500px;
+}
+
+.virtual-keyboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    cursor: move;
+    padding: 8px;
+    background-color: #3d3d3d;
+    border-radius: 4px;
+    user-select: none;
+}
+
+.virtual-keyboard-header h3 {
+    margin: 0;
+    color: #ffffff;
+    font-size: 16px;
+}
+
+/* Key Combination Display */
+.key-combination-display {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background-color: #3d3d3d;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    border: 1px solid #555;
+}
+
+.combination-info {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.combination-label {
+    color: #ccc;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.combination-keys {
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 14px;
+    min-height: 20px;
+    padding: 4px 8px;
+    background-color: #2d2d2d;
+    border-radius: 4px;
+    border: 1px solid #555;
+}
+
+.virtual-keyboard {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.keyboard-column {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.main-keyboard {
+    flex: 1;
+}
+
+.nav-keyboard {
+    min-width: 160px;
+}
+
+.numpad-keyboard {
+    min-width: 180px;
+}
+
+.keyboard-row {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-start;
+    align-items: stretch;
+    margin-bottom: 4px;
+}
+
+.key-btn {
+    padding: 8px 6px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background-color: #3d3d3d;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 36px;
+    height: 36px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+}
+
+.key-btn:hover {
+    background-color: #4d4d4d;
+    border-color: #666;
+}
+
+.key-btn:active {
+    background-color: #007acc;
+    border-color: #007acc;
+}
+
+.key-btn.active {
+    background-color: #28a745;
+    border-color: #28a745;
+    box-shadow: 0 0 8px rgba(40, 167, 69, 0.5);
+}
+
+/* Key Spacers */
+.key-spacer {
+    width: 12px;
+}
+
+.key-spacer-large {
+    width: 24px;
+}
+
+/* Function Keys */
+.function-key {
+    min-width: 39px;
+    width: 39px;
+}
+
+/* Special Key Sizes */
+.backspace-key {
+    min-width: 84px;
+}
+
+.tab-key {
+    min-width: 60px;
+}
+
+.backslash-key {
+    min-width: 60px;
+}
+
+.caps-key {
+    min-width: 70px;
+}
+
+.enter-key {
+    min-width: 90px;
+}
+
+.shift-key {
+    min-width: 100px;
+}
+
+.ctrl-key {
+    min-width: 50px;
+}
+
+.alt-key {
+    min-width: 48px;
+}
+
+.win-key {
+    min-width: 45px;
+}
+
+.space-key {
+    min-width: 240px;
+}
+
+.menu-key {
+    min-width: 50px;
+}
+
+/* Navigation Keys */
+.nav-key {
+    min-width: 38px;
+    background-color: #495057;
+}
+
+/* Modifier Keys */
+.modifier-key {
+    background-color: #6c757d;
+}
+
+.modifier-key:hover {
+    background-color: #5a6268;
+}
+
+.modifier-key.active {
+    background-color: #28a745;
+    border-color: #28a745;
+    box-shadow: 0 0 8px rgba(40, 167, 69, 0.5);
+}
+
+/* Navigation Column Specific Styles */
+.nav-keyboard .system-row {
+    margin-bottom: 12px;
+    justify-content: center;
+}
+
+.nav-keyboard .nav-row-1,
+.nav-keyboard .nav-row-2 {
+    margin-bottom: 4px;
+    justify-content: center;
+}
+
+.nav-keyboard .nav-key {
+    min-width: 39px;
+    width: 39px;
+}
+
+/* Arrow Keys Section */
+.arrow-keys-spacer {
+    height: 20px;
+}
+
+.arrow-keys-cluster {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin-top: 12px;
+}
+
+.arrow-row-1 {
+    display: flex;
+    justify-content: center;
+}
+
+.arrow-row-2 {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+/* Numeric Keypad Section */
+.numpad-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background-color: #3a3a3a;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #555;
+    margin-top: 8px;
+}
+
+.numpad-row {
+    display: flex;
+    gap: 4px;
+    align-items: stretch;
+    position: relative;
+}
+
+.numpad-key {
+    min-width: 40px;
+    width: 40px;
+    height: 36px;
+    background-color: #4a4a4a;
+    border: 1px solid #666;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.numpad-key:hover {
+    background-color: #5a5a5a;
+}
+
+.numpad-zero {
+    width: 84px;
+}
+
+.numpad-tall {
+    position: absolute;
+    right: 0;
+    height: 76px;
+    width: 40px;
+}
+
+.numpad-enter {
+    right: 0;
+    top: 0;
+}
+
+.numpad-row-3 {
+    margin-right: 44px;
+}
+
+.numpad-row-4 {
+    margin-right: 44px;
+}
+
+/* Arrow Keys */
+.arrow-key {
+    min-width: 39px;
+    width: 39px;
+    height: 36px;
+    font-size: 14px;
+    background-color: #495057;
+    border: 1px solid #666;
+}
+
+.arrow-key:hover {
+    background-color: #5a6268;
+}
+
+/* Row-specific styling */
+.function-row {
+    margin-bottom: 8px;
+}
+
+.number-row, .top-letter-row, .middle-letter-row, .bottom-letter-row, .bottom-row {
+    margin-bottom: 4px;
+}
+
+/* Quick Controls Styling */
+.quick-controls .btn {
+    min-width: 50px;
+}
+
+#sendCAD {
+    font-weight: bold;
+    font-size: 11px;
+    min-width: 90px;
+}
+
+#virtualKeyboard {
+    font-size: 12px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .header {
@@ -440,5 +813,69 @@ input:checked + .toggle-slider:before {
     .controls {
         flex-direction: column;
         gap: 8px;
+    }
+    
+    .virtual-keyboard-content {
+        margin: 10px;
+        max-width: calc(100% - 20px);
+        min-width: 350px;
+        width: 100%;
+    }
+    
+    .virtual-keyboard {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .nav-keyboard {
+        min-width: auto;
+    }
+    
+    .numpad-keyboard {
+        min-width: auto;
+    }
+    
+    .arrow-keys-spacer {
+        display: none;
+    }
+    
+    .keyboard-row {
+        gap: 2px;
+    }
+    
+    .key-btn {
+        padding: 4px 6px;
+        font-size: 10px;
+        min-width: 28px;
+        height: 28px;
+    }
+    
+    .shift-key {
+        min-width: 70px;
+    }
+    
+    .space-key {
+        min-width: 180px;
+    }
+    
+    .numpad-key {
+        min-width: 32px;
+        width: 32px;
+        height: 28px;
+    }
+    
+    .numpad-zero {
+        width: 68px;
+    }
+    
+    .arrow-key {
+        min-width: 28px;
+        width: 28px;
+        height: 28px;
+    }
+    
+    .nav-keyboard .nav-key {
+        min-width: 32px;
+        width: 32px;
     }
 }
