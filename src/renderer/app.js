@@ -11,6 +11,9 @@ class KVMClient {
         this.mouseButtonsPressed = 0; // Track which buttons are pressed
         this.reverseScroll = false; // Natural scrolling direction
         
+        // Load saved settings
+        this.loadSettings();
+        
         // Common resolutions (from HttpVideo.html)
         this.COMMON_RESOLUTIONS = [
             [1920, 1080], [1280, 720], [720, 480], [640, 480]
@@ -20,6 +23,7 @@ class KVMClient {
         this.bindEvents();
         this.setupGlobalKeyHandler();
         this.initializeVideo();
+        this.applyLoadedSettings();
     }
 
     initializeElements() {
@@ -81,6 +85,48 @@ class KVMClient {
         this.infoPanel = document.querySelector('.info-panel');
         this.sidebarToggleBtn = document.getElementById('sidebarToggle');
         this.closeSidebarBtn = document.getElementById('closeSidebar');
+    }
+
+    loadSettings() {
+        try {
+            // Load mouse mode preference
+            const savedMouseMode = localStorage.getItem('kvmMouseMode');
+            if (savedMouseMode && (savedMouseMode === 'absolute' || savedMouseMode === 'relative')) {
+                this.mouseMode = savedMouseMode;
+            }
+            
+            // Load scroll direction preference
+            const savedScrollReverse = localStorage.getItem('kvmScrollReverse');
+            if (savedScrollReverse !== null) {
+                this.reverseScroll = savedScrollReverse === 'true';
+            }
+            
+            console.log('Loaded settings:', { mouseMode: this.mouseMode, reverseScroll: this.reverseScroll });
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+    }
+
+    saveSettings() {
+        try {
+            localStorage.setItem('kvmMouseMode', this.mouseMode);
+            localStorage.setItem('kvmScrollReverse', this.reverseScroll.toString());
+            console.log('Saved settings:', { mouseMode: this.mouseMode, reverseScroll: this.reverseScroll });
+        } catch (error) {
+            console.error('Error saving settings:', error);
+        }
+    }
+
+    applyLoadedSettings() {
+        // Apply mouse mode setting to UI
+        this.mouseModeToggle.checked = (this.mouseMode === 'relative');
+        this.updateMouseModeDisplay();
+        
+        // Apply scroll direction setting to UI
+        this.scrollReverseToggle.checked = this.reverseScroll;
+        this.updateScrollDirectionDisplay();
+        
+        console.log('Applied loaded settings to UI');
     }
 
     bindEvents() {
@@ -154,8 +200,17 @@ class KVMClient {
         
         // Handle pointer lock changes
         document.addEventListener('pointerlockchange', () => {
+            console.log('Pointer lock changed:', document.pointerLockElement);
             if (!document.pointerLockElement && this.mouseCaptured && this.mouseMode === 'relative') {
                 // Pointer lock was lost, release capture with key reset
+                this.releaseMouseCaptureWithKeyReset();
+            }
+        });
+        
+        // Handle pointer lock errors
+        document.addEventListener('pointerlockerror', () => {
+            console.error('Pointer lock failed');
+            if (this.mouseCaptured && this.mouseMode === 'relative') {
                 this.releaseMouseCaptureWithKeyReset();
             }
         });
@@ -170,17 +225,16 @@ class KVMClient {
             }
         });
         
-        // Mouse capture overlay events (for relative mode)
-        this.mouseCaptureOverlay.addEventListener('mousemove', (e) => {
-            if (this.mouseCaptured && this.hidConnected && this.mouseMode === 'relative') {
+        // Video element mouse events (for both absolute and relative modes)
+        this.videoElement.addEventListener('mousemove', (e) => {
+            if (this.mouseCaptured && this.hidConnected) {
                 this.handleMouseMove(e);
             }
         });
         
-        // Video element mouse events (for absolute mode)
-        this.videoElement.addEventListener('mousemove', (e) => {
-            if (this.mouseCaptured && this.hidConnected && this.mouseMode === 'absolute') {
-                // In absolute mode, send position updates on mouse move
+        // Mouse capture overlay events (backup for relative mode)
+        this.mouseCaptureOverlay.addEventListener('mousemove', (e) => {
+            if (this.mouseCaptured && this.hidConnected && this.mouseMode === 'relative') {
                 this.handleMouseMove(e);
             }
         });
@@ -973,6 +1027,7 @@ class KVMClient {
     toggleMouseMode() {
         this.mouseMode = this.mouseModeToggle.checked ? 'relative' : 'absolute';
         this.updateMouseModeDisplay();
+        this.saveSettings();
     }
 
     updateMouseModeDisplay() {
@@ -1059,7 +1114,12 @@ class KVMClient {
             document.body.style.cursor = 'none';
             
             // Request pointer lock for relative mode
-            this.videoElement.requestPointerLock();
+            console.log('Requesting pointer lock for relative mode');
+            this.videoElement.requestPointerLock().then(() => {
+                console.log('Pointer lock request succeeded');
+            }).catch(error => {
+                console.error('Pointer lock request failed:', error);
+            });
         } else {
             // Absolute mode: keep cursor visible, just enable click handling
             this.mouseCaptureOverlay.style.display = 'none';
@@ -1070,6 +1130,7 @@ class KVMClient {
     toggleScrollDirection() {
         this.reverseScroll = this.scrollReverseToggle.checked;
         this.updateScrollDirectionDisplay();
+        this.saveSettings();
     }
 
     updateScrollDirectionDisplay() {

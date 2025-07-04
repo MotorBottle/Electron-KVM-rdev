@@ -131,7 +131,13 @@ class HIDManager {
       switch (data.type) {
         case 'move':
           // Relative mouse movement (report ID 7)
-          buffer = [7, 0, 0, data.x & 0xFF, data.y & 0xFF, 0, 0, 0, 0];
+          // Handle signed 8-bit values for movement deltas
+          const deltaX = Math.max(-127, Math.min(127, data.x));
+          const deltaY = Math.max(-127, Math.min(127, data.y));
+          const deltaX_byte = deltaX < 0 ? (256 + deltaX) : deltaX;
+          const deltaY_byte = deltaY < 0 ? (256 + deltaY) : deltaY;
+          buffer = [7, 0, 0, deltaX_byte, deltaY_byte, 0, 0, 0, 0];
+          console.log('Relative movement:', { deltaX, deltaY, deltaX_byte, deltaY_byte });
           break;
         case 'abs':
           // Absolute mouse positioning (report ID 2)
