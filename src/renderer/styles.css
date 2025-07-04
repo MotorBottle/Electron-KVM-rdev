@@ -438,7 +438,7 @@ input:checked + .toggle-slider:before {
     background-color: #2d2d2d;
     border-radius: 8px;
     padding: 16px;
-    width: auto;
+    width: fit-content;
     max-width: 95vw;
     max-height: 90vh;
     overflow-y: auto;
@@ -446,7 +446,6 @@ input:checked + .toggle-slider:before {
     position: relative;
     resize: both;
     min-width: 800px;
-    min-height: 400px;
 }
 
 .virtual-keyboard-header {
@@ -459,6 +458,7 @@ input:checked + .toggle-slider:before {
     background-color: #3d3d3d;
     border-radius: 4px;
     user-select: none;
+    gap: 16px;
 }
 
 .virtual-keyboard-header h3 {
@@ -467,20 +467,19 @@ input:checked + .toggle-slider:before {
     font-size: 16px;
 }
 
-/* Key Combination Display */
-.key-combination-display {
+.header-left {
+    flex: 1;
+}
+
+.header-right {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px;
-    background-color: #3d3d3d;
-    border-radius: 6px;
-    margin-bottom: 16px;
-    border: 1px solid #555;
 }
 
+/* Key Combination Display - now integrated in header */
 .combination-info {
-    flex: 1;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -490,6 +489,7 @@ input:checked + .toggle-slider:before {
     color: #ccc;
     font-weight: 500;
     font-size: 14px;
+    white-space: nowrap;
 }
 
 .combination-keys {
@@ -497,10 +497,12 @@ input:checked + .toggle-slider:before {
     font-weight: bold;
     font-size: 14px;
     min-height: 20px;
+    min-width: 100px;
     padding: 4px 8px;
     background-color: #2d2d2d;
     border-radius: 4px;
     border: 1px solid #555;
+    text-align: center;
 }
 
 .virtual-keyboard {

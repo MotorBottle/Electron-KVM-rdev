@@ -122,18 +122,18 @@
         <div class="virtual-keyboard-modal" id="virtualKeyboardModal" style="display: none;">
             <div class="virtual-keyboard-content" id="virtualKeyboardContent">
                 <div class="virtual-keyboard-header" id="virtualKeyboardHeader">
-                    <h3>Virtual Keyboard</h3>
-                    <button id="closeVirtualKeyboard" class="btn btn-secondary">×</button>
-                </div>
-                
-                <!-- Key Combination Display -->
-                <div class="key-combination-display">
-                    <div class="combination-info">
-                        <span class="combination-label">Combination:</span>
-                        <span class="combination-keys" id="combinationKeys">None</span>
+                    <div class="header-left">
+                        <h3>Virtual Keyboard</h3>
                     </div>
-                    <button class="btn btn-primary" id="sendCombination" disabled>Send</button>
-                    <button class="btn btn-secondary" id="clearCombination">Clear</button>
+                    <div class="header-right">
+                        <div class="combination-info">
+                            <span class="combination-label">Combination:</span>
+                            <span class="combination-keys" id="combinationKeys">None</span>
+                        </div>
+                        <button class="btn btn-primary" id="sendCombination" disabled>Send</button>
+                        <button class="btn btn-secondary" id="clearCombination">Clear</button>
+                        <button id="closeVirtualKeyboard" class="btn btn-secondary">×</button>
+                    </div>
                 </div>
                 
                 <div class="virtual-keyboard">

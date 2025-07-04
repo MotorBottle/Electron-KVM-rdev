@@ -1413,28 +1413,43 @@ class KVMClient {
             }
 
             // Send combination with modifiers
-            for (const keyObj of this.pendingKeys) {
-                const modifiers = {
-                    ctrlKey: Array.from(this.activeModifiers).some(code => code.includes('Control')),
-                    altKey: Array.from(this.activeModifiers).some(code => code.includes('Alt')),
-                    metaKey: Array.from(this.activeModifiers).some(code => code.includes('Meta')),
-                    shiftKey: Array.from(this.activeModifiers).some(code => code.includes('Shift'))
-                };
+            // First, press all modifier keys
+            for (const code of this.activeModifiers) {
+                await window.electronAPI.sendKeyboardEvent({
+                    type: 'keydown',
+                    key: this.getKeyFromCode(code),
+                    code: code
+                });
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
 
+            // Then press and release each regular key
+            for (const keyObj of this.pendingKeys) {
                 await window.electronAPI.sendKeyboardEvent({
                     type: 'keydown',
                     key: keyObj.key,
-                    code: keyObj.code,
-                    ...modifiers
+                    code: keyObj.code
                 });
+                
+                await new Promise(resolve => setTimeout(resolve, 50));
+                
+                await window.electronAPI.sendKeyboardEvent({
+                    type: 'keyup',
+                    key: keyObj.key,
+                    code: keyObj.code
+                });
+                
+                await new Promise(resolve => setTimeout(resolve, 10));
+            }
 
-                setTimeout(async () => {
-                    await window.electronAPI.sendKeyboardEvent({
-                        type: 'keyup',
-                        key: keyObj.key,
-                        code: keyObj.code
-                    });
-                }, 50);
+            // Finally, release all modifier keys
+            for (const code of this.activeModifiers) {
+                await window.electronAPI.sendKeyboardEvent({
+                    type: 'keyup',
+                    key: this.getKeyFromCode(code),
+                    code: code
+                });
+                await new Promise(resolve => setTimeout(resolve, 10));
             }
 
             // Clear combination and release modifiers after sending
