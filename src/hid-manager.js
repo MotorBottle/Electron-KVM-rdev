@@ -11,6 +11,10 @@ class HIDManager {
     // Track current modifier and key states
     this.modifierState = 0;
     this.activeKeys = new Set(); // Track which keys are currently pressed
+    
+    // Track last known mouse position for button events
+    this.lastX = 0;
+    this.lastY = 0;
   }
 
   getDevices() {
@@ -126,6 +130,8 @@ class HIDManager {
     }
 
     try {
+      // Log incoming data for debugging
+      console.log('HID Manager received mouse event:', data);
       let buffer;
 
       switch (data.type) {
@@ -145,16 +151,54 @@ class HIDManager {
           const x_scaled = Math.max(0, Math.min(0x7FFF, data.x));
           const y_scaled = Math.max(0, Math.min(0x7FFF, data.y));
           const buttonState = data.buttonsPressed || 0;
-          buffer = [2, 0, buttonState, x_scaled & 0xFF, (x_scaled >> 8) & 0xFF, y_scaled & 0xFF, (y_scaled >> 8) & 0xFF, 0, 0];
-          console.log('Absolute position:', { x: data.x, y: data.y, x_scaled, y_scaled, buttons: buttonState });
+          
+          // Ensure coordinates are valid integers
+          const x_int = Math.round(x_scaled);
+          const y_int = Math.round(y_scaled);
+          
+          // Split into low and high bytes
+          const x_low = x_int & 0xFF;
+          const x_high = (x_int >> 8) & 0x7F; // Mask to 7 bits for safety
+          const y_low = y_int & 0xFF;
+          const y_high = (y_int >> 8) & 0x7F; // Mask to 7 bits for safety
+          
+          buffer = [2, 0, buttonState, x_low, x_high, y_low, y_high, 0, 0];
+          console.log('Absolute position DEBUG:', { 
+            original: { x: data.x, y: data.y }, 
+            scaled: { x: x_scaled, y: y_scaled },
+            integers: { x: x_int, y: y_int },
+            bytes: { x_low, x_high, y_low, y_high },
+            buttonState,
+            buffer: buffer.slice()
+          });
           break;
         case 'mousedown':
-          // Mouse button press - use button state from data
-          buffer = [2, 0, data.buttonsPressed || this.getMouseButtonCode(data.button), 0, 0, 0, 0, 0, 0];
-          break;
         case 'mouseup':
-          // Mouse button release - use remaining pressed buttons
-          buffer = [2, 0, data.buttonsPressed || 0, 0, 0, 0, 0, 0, 0];
+          // Mouse button events - MUST include current position
+          // Use coordinates from data, or maintain last known position
+          const click_x = data.x !== undefined ? Math.max(0, Math.min(0x7FFF, data.x)) : (this.lastX || 0);
+          const click_y = data.y !== undefined ? Math.max(0, Math.min(0x7FFF, data.y)) : (this.lastY || 0);
+          
+          // Store last position for future button events
+          if (data.x !== undefined) this.lastX = click_x;
+          if (data.y !== undefined) this.lastY = click_y;
+          
+          const click_x_int = Math.round(click_x);
+          const click_y_int = Math.round(click_y);
+          
+          const click_x_low = click_x_int & 0xFF;
+          const click_x_high = (click_x_int >> 8) & 0x7F;
+          const click_y_low = click_y_int & 0xFF;
+          const click_y_high = (click_y_int >> 8) & 0x7F;
+          
+          const clickButtonState = data.buttonsPressed || (data.type === 'mousedown' ? this.getMouseButtonCode(data.button) : 0);
+          
+          buffer = [2, 0, clickButtonState, click_x_low, click_x_high, click_y_low, click_y_high, 0, 0];
+          console.log(`${data.type} with position:`, { 
+            x: click_x, y: click_y, 
+            buttons: clickButtonState,
+            bytes: { click_x_low, click_x_high, click_y_low, click_y_high }
+          });
           break;
         case 'wheel':
           // Mouse wheel scroll - use proper wheel delta scaling
@@ -171,10 +215,20 @@ class HIDManager {
       }
 
       // Python rotation: buffer[-1:] + buffer[:-1] then buffer[0] = 0
+      console.log('Buffer before rotation:', buffer);
       const rotatedBuffer = [buffer[8], ...buffer.slice(0, 8)];
       rotatedBuffer[0] = 0;
       
-      console.log('Sending mouse buffer:', rotatedBuffer);
+      console.log('Buffer after rotation:', rotatedBuffer);
+      console.log('Coordinate bytes in final buffer:', {
+        x_low: rotatedBuffer[4],
+        x_high: rotatedBuffer[5], 
+        y_low: rotatedBuffer[6],
+        y_high: rotatedBuffer[7],
+        reconstructed_x: rotatedBuffer[4] + (rotatedBuffer[5] << 8),
+        reconstructed_y: rotatedBuffer[6] + (rotatedBuffer[7] << 8)
+      });
+      
       this.device.write(rotatedBuffer);
       return { success: true };
     } catch (error) {

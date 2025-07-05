@@ -11,10 +11,6 @@ class KVMClient {
         this.mouseButtonsPressed = 0; // Track which buttons are pressed
         this.reverseScroll = false; // Natural scrolling direction
         
-        // Platform detection
-        this.isWindows = navigator.platform.indexOf('Win') > -1;
-        this.isMacOS = navigator.platform.indexOf('Mac') > -1;
-        
         // Load saved settings
         this.loadSettings();
         
@@ -26,6 +22,7 @@ class KVMClient {
         this.initializeElements();
         this.bindEvents();
         this.setupGlobalKeyHandler();
+        this.logSystemEnvironment();
         this.initializeVideo();
         this.applyLoadedSettings();
     }
@@ -234,11 +231,6 @@ class KVMClient {
         // Video element mouse events (for both absolute and relative modes)
         this.videoElement.addEventListener('mousemove', (e) => {
             if (this.mouseCaptured && this.hidConnected) {
-                // Windows-specific event preprocessing
-                if (this.isWindows) {
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                }
                 this.handleMouseMove(e);
             }
         });
@@ -253,10 +245,6 @@ class KVMClient {
         // Mouse button events on video element
         this.videoElement.addEventListener('mousedown', (e) => {
             if (this.mouseCaptured && this.hidConnected) {
-                if (this.isWindows) {
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                }
                 this.handleMouseEvent(e);
                 e.preventDefault();
             }
@@ -264,10 +252,6 @@ class KVMClient {
         
         this.videoElement.addEventListener('mouseup', (e) => {
             if (this.mouseCaptured && this.hidConnected) {
-                if (this.isWindows) {
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                }
                 this.handleMouseEvent(e);
                 e.preventDefault();
             }
@@ -276,10 +260,6 @@ class KVMClient {
         // Mouse wheel events on video element
         this.videoElement.addEventListener('wheel', (e) => {
             if (this.mouseCaptured && this.hidConnected) {
-                if (this.isWindows) {
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                }
                 this.handleMouseWheel(e);
                 e.preventDefault();
             }
@@ -906,69 +886,48 @@ class KVMClient {
             // Send absolute position for absolute mode
             const videoRect = this.videoElement.getBoundingClientRect();
             
-            // Windows-specific coordinate adjustments
-            let clientX = event.clientX;
-            let clientY = event.clientY;
-            
-            if (this.isWindows) {
-                // Windows-specific coordinate handling
-                // Use clientX/Y directly, don't recalculate
-                clientX = event.clientX;
-                clientY = event.clientY;
-            }
-            
             // Calculate relative position within the video element
-            let relativeX = clientX - videoRect.left;
-            let relativeY = clientY - videoRect.top;
+            const relativeX = event.clientX - videoRect.left;
+            const relativeY = event.clientY - videoRect.top;
             
             // Ensure coordinates are within bounds
-            relativeX = Math.max(0, Math.min(relativeX, videoRect.width));
-            relativeY = Math.max(0, Math.min(relativeY, videoRect.height));
+            const clampedX = Math.max(0, Math.min(relativeX, videoRect.width));
+            const clampedY = Math.max(0, Math.min(relativeY, videoRect.height));
             
             // Scale to HID coordinate space (0-32767)
-            let x = Math.round((relativeX / videoRect.width) * 0x7FFF);
-            let y = Math.round((relativeY / videoRect.height) * 0x7FFF);
-            
-            // Ensure coordinates are valid
-            x = Math.max(0, Math.min(x, 0x7FFF));
-            y = Math.max(0, Math.min(y, 0x7FFF));
-            
-            console.log('Mouse position DEBUG:', { 
-                platform: this.isWindows ? 'Windows' : 'Other',
-                event: {
-                    clientX: event.clientX,
-                    clientY: event.clientY,
-                    offsetX: event.offsetX,
-                    offsetY: event.offsetY,
-                    target: event.target.tagName
-                },
-                calculated: {
-                    clientX: clientX, 
-                    clientY: clientY
-                },
-                videoRect: { 
-                    left: videoRect.left, 
-                    top: videoRect.top, 
-                    width: videoRect.width, 
-                    height: videoRect.height 
-                },
-                coordinates: {
-                    relativeX, 
-                    relativeY, 
-                    finalX: x, 
-                    finalY: y,
-                    percentageX: (relativeX / videoRect.width * 100).toFixed(2) + '%',
-                    percentageY: (relativeY / videoRect.height * 100).toFixed(2) + '%'
-                }
+            const x = Math.round((clampedX / videoRect.width) * 0x7FFF);
+            const y = Math.round((clampedY / videoRect.height) * 0x7FFF);
+
+            console.log('Mouse move DEBUG:', { 
+                clientX: event.clientX, 
+                clientY: event.clientY,
+                videoRect: { left: videoRect.left, top: videoRect.top, width: videoRect.width, height: videoRect.height },
+                relative: { x: relativeX, y: relativeY },
+                clamped: { x: clampedX, y: clampedY },
+                final: { x, y },
+                devicePixelRatio: window.devicePixelRatio,
+                screenResolution: { width: screen.width, height: screen.height },
+                windowSize: { width: window.innerWidth, height: window.innerHeight },
+                mouseCaptured: this.mouseCaptured,
+                videoDisplayed: this.videoElement.style.display,
+                targetElement: event.target.tagName
             });
 
+            // Validate coordinates before sending
+            if (isNaN(x) || isNaN(y) || x < 0 || y < 0) {
+                console.error('Invalid coordinates detected:', { x, y });
+                return;
+            }
+
             try {
-                await window.electronAPI.sendMouseEvent({
+                const mouseEventData = {
                     type: 'abs',
                     x: x,
                     y: y,
                     buttonsPressed: this.mouseButtonsPressed // Include button state for dragging
-                });
+                };
+                console.log('Sending to HID manager:', mouseEventData);
+                await window.electronAPI.sendMouseEvent(mouseEventData);
             } catch (error) {
                 console.error('Error sending absolute mouse position:', error);
             }
@@ -981,53 +940,25 @@ class KVMClient {
         // For absolute mode, use video element bounds, not overlay
         const videoRect = this.videoElement.getBoundingClientRect();
         
-        // Windows-specific coordinate adjustments (same as handleMouseMove)
-        let clientX = event.clientX;
-        let clientY = event.clientY;
-        
-        if (this.isWindows) {
-            // Windows-specific coordinate handling
-            clientX = event.clientX;
-            clientY = event.clientY;
-        }
-        
         // Calculate relative position within the video element
-        let relativeX = clientX - videoRect.left;
-        let relativeY = clientY - videoRect.top;
+        const relativeX = event.clientX - videoRect.left;
+        const relativeY = event.clientY - videoRect.top;
         
         // Ensure coordinates are within bounds
-        relativeX = Math.max(0, Math.min(relativeX, videoRect.width));
-        relativeY = Math.max(0, Math.min(relativeY, videoRect.height));
+        const clampedX = Math.max(0, Math.min(relativeX, videoRect.width));
+        const clampedY = Math.max(0, Math.min(relativeY, videoRect.height));
         
         // Scale to HID coordinate space (0-32767)
-        const x = Math.round((relativeX / videoRect.width) * 0x7FFF);
-        const y = Math.round((relativeY / videoRect.height) * 0x7FFF);
+        const x = Math.round((clampedX / videoRect.width) * 0x7FFF);
+        const y = Math.round((clampedY / videoRect.height) * 0x7FFF);
 
-        console.log('Absolute mouse click DEBUG:', { 
-            platform: this.isWindows ? 'Windows' : 'Other',
-            mouseMode: this.mouseMode,
-            event: {
-                clientX: event.clientX,
-                clientY: event.clientY,
-                offsetX: event.offsetX,
-                offsetY: event.offsetY,
-                button: event.button,
-                target: event.target.tagName
-            },
-            coordinates: {
-                relativeX, 
-                relativeY, 
-                finalX: x, 
-                finalY: y,
-                percentageX: (relativeX / videoRect.width * 100).toFixed(2) + '%',
-                percentageY: (relativeY / videoRect.height * 100).toFixed(2) + '%'
-            },
-            videoRect: { 
-                left: videoRect.left, 
-                top: videoRect.top, 
-                width: videoRect.width, 
-                height: videoRect.height 
-            }
+        console.log('Mouse click DEBUG:', { 
+            clientX: event.clientX, 
+            clientY: event.clientY,
+            videoRect: { left: videoRect.left, top: videoRect.top, width: videoRect.width, height: videoRect.height },
+            relative: { x: relativeX, y: relativeY },
+            clamped: { x: clampedX, y: clampedY },
+            final: { x, y }
         });
 
         try {
@@ -1052,12 +983,24 @@ class KVMClient {
             this.mouseButtonsPressed &= ~buttonMask;
         }
         
+        // Calculate current mouse position for the button event
+        const videoRect = this.videoElement.getBoundingClientRect();
+        const relativeX = event.clientX - videoRect.left;
+        const relativeY = event.clientY - videoRect.top;
+        const clampedX = Math.max(0, Math.min(relativeX, videoRect.width));
+        const clampedY = Math.max(0, Math.min(relativeY, videoRect.height));
+        const x = Math.round((clampedX / videoRect.width) * 0x7FFF);
+        const y = Math.round((clampedY / videoRect.height) * 0x7FFF);
+        
         try {
             await window.electronAPI.sendMouseEvent({
                 type: event.type === 'mousedown' ? 'mousedown' : 'mouseup',
                 button: event.button,
-                buttonsPressed: this.mouseButtonsPressed
+                buttonsPressed: this.mouseButtonsPressed,
+                x: x,  // Include current position
+                y: y   // Include current position
             });
+            console.log(`Button ${event.type} at position:`, { x, y, button: event.button });
         } catch (error) {
             console.error('Error sending mouse event:', error);
         }
@@ -1208,42 +1151,27 @@ class KVMClient {
     captureMouseKeyboard() {
         this.mouseCaptured = true;
         
+        // Multiple approaches for macOS compatibility
         const videoContainer = document.querySelector('.video-container');
         
-        if (this.isWindows) {
-            // Windows-specific handling
-            this.header.style.display = 'none';
-            this.headerVisible = false;
-            
-            // Ensure video container fills entire viewport without affecting layout
-            videoContainer.style.position = 'fixed';
-            videoContainer.style.top = '0';
-            videoContainer.style.left = '0';
-            videoContainer.style.width = '100vw';
-            videoContainer.style.height = '100vh';
-            videoContainer.style.zIndex = '9999';
-            
-            console.log('Windows: Header hidden and video container set to fullscreen');
-        } else {
-            // macOS and other platforms
-            this.header.style.display = 'none';
-            this.headerVisible = false;
-            
-            // Remove header from document flow temporarily
-            this.header.style.position = 'absolute';
-            this.header.style.top = '-200px';
-            this.header.style.pointerEvents = 'none';
-            
-            // Ensure video container fills entire viewport
-            videoContainer.style.position = 'fixed';
-            videoContainer.style.top = '0';
-            videoContainer.style.left = '0';
-            videoContainer.style.width = '100vw';
-            videoContainer.style.height = '100vh';
-            videoContainer.style.zIndex = '9999';
-            
-            console.log('macOS: Header fully removed and video extended for control');
-        }
+        // 1. Hide header completely
+        this.header.style.display = 'none';
+        this.headerVisible = false;
+        
+        // 2. Remove header from document flow temporarily
+        this.header.style.position = 'absolute';
+        this.header.style.top = '-200px';
+        this.header.style.pointerEvents = 'none';
+        
+        // 3. Ensure video container fills entire viewport
+        videoContainer.style.position = 'fixed';
+        videoContainer.style.top = '0';
+        videoContainer.style.left = '0';
+        videoContainer.style.width = '100vw';
+        videoContainer.style.height = '100vh';
+        videoContainer.style.zIndex = '9999';
+        
+        console.log('Header fully removed and video extended for macOS control');
         
         if (this.mouseMode === 'relative') {
             // Relative mode: hide cursor and show overlay for capturing
@@ -1759,6 +1687,35 @@ class KVMClient {
                 notification.style.display = 'none';
             }, 300);
         }, 4000);
+    }
+
+    logSystemEnvironment() {
+        console.log('=== SYSTEM ENVIRONMENT DEBUG ===');
+        console.log('Platform:', navigator.platform);
+        console.log('User Agent:', navigator.userAgent);
+        console.log('Device Pixel Ratio:', window.devicePixelRatio);
+        console.log('Screen Resolution:', { width: screen.width, height: screen.height });
+        console.log('Screen Available:', { width: screen.availWidth, height: screen.availHeight });
+        console.log('Window Inner Size:', { width: window.innerWidth, height: window.innerHeight });
+        console.log('Window Outer Size:', { width: window.outerWidth, height: window.outerHeight });
+        console.log('Document Size:', { 
+            width: document.documentElement.clientWidth, 
+            height: document.documentElement.clientHeight 
+        });
+        
+        // Check if any zoom or scaling is applied
+        const testDiv = document.createElement('div');
+        testDiv.style.width = '1px';
+        testDiv.style.height = '1px';
+        testDiv.style.position = 'absolute';
+        testDiv.style.top = '-1000px';
+        document.body.appendChild(testDiv);
+        const testRect = testDiv.getBoundingClientRect();
+        document.body.removeChild(testDiv);
+        
+        console.log('CSS Pixel Test:', { width: testRect.width, height: testRect.height });
+        console.log('Browser Zoom Factor:', testRect.width !== 1 ? `${testRect.width}x` : 'None');
+        console.log('==================================');
     }
 
     async toggleFullscreen() {
