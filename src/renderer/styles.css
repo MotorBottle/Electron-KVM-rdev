@@ -106,6 +106,7 @@ body {
 
 #hidDevices {
     min-width: 150px;
+    max-width: 250px;
 }
 
 .device-select:focus {
@@ -798,7 +799,7 @@ input:checked + .toggle-slider:before {
     font-weight: bold;
     font-size: 11px;
     min-width: 90px;
-    height: 32px;
+    height: 22px;
 }
 
 #virtualKeyboard {
@@ -807,11 +808,11 @@ input:checked + .toggle-slider:before {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 32px;
+    height: 22px;
 }
 
 #toggleFullscreen {
-    height: 32px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
