@@ -52,7 +52,8 @@
       "entitlementsInherit": "assets/entitlements.mac.plist",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "darkModeSupport": true
+      "darkModeSupport": true,
+      "extendInfo": "assets/Info.plist"
     },
     "dmg": {
       "title": "KVM Client",
