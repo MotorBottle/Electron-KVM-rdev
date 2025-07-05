@@ -40,18 +40,7 @@ body {
 }
 
 .title-bar {
-    -webkit-app-region: drag;
-    padding: 4px 0;
-    margin-bottom: 8px;
-}
-
-.title-bar h1 {
-    font-size: 16px;
-    font-weight: 600;
-    color: #ffffff;
-    margin: 0;
-    text-align: center;
-    line-height: 1.2;
+    display: none; /* Hide custom title bar since we use system title bar */
 }
 
 .controls {
@@ -351,18 +340,37 @@ input:checked + .toggle-slider:before {
     background-color: transparent;
     z-index: 1000;
     cursor: none;
+    pointer-events: none; /* Allow clicks to pass through overlay */
 }
 
 .mouse-capture-info {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    background-color: rgba(0, 0, 0, 0.8);
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background-color: rgba(0, 0, 0, 0.9);
     color: white;
     padding: 12px 16px;
-    border-radius: 6px;
-    font-size: 14px;
-    text-align: center;
+    border-radius: 8px;
+    font-size: 13px;
+    text-align: left;
+    z-index: 10000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    max-width: 280px;
+    pointer-events: auto; /* Re-enable pointer events just for the notification */
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.mouse-capture-info kbd {
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-family: inherit;
+    font-weight: 500;
 }
 
 .info-panel.visible {

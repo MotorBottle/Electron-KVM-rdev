@@ -22,7 +22,6 @@ class KVMClient {
         this.initializeElements();
         this.bindEvents();
         this.setupGlobalKeyHandler();
-        this.logSystemEnvironment();
         this.initializeVideo();
         this.applyLoadedSettings();
     }
@@ -837,6 +836,12 @@ class KVMClient {
         this.mouseCaptureOverlay.style.display = 'none';
         document.body.style.cursor = 'default';
         
+        // Hide control mode notification
+        const controlNotification = document.getElementById('controlModeNotification');
+        if (controlNotification) {
+            controlNotification.style.display = 'none';
+        }
+        
         // Exit pointer lock if active
         if (document.pointerLockElement) {
             document.exitPointerLock();
@@ -898,21 +903,6 @@ class KVMClient {
             const x = Math.round((clampedX / videoRect.width) * 0x7FFF);
             const y = Math.round((clampedY / videoRect.height) * 0x7FFF);
 
-            console.log('Mouse move DEBUG:', { 
-                clientX: event.clientX, 
-                clientY: event.clientY,
-                videoRect: { left: videoRect.left, top: videoRect.top, width: videoRect.width, height: videoRect.height },
-                relative: { x: relativeX, y: relativeY },
-                clamped: { x: clampedX, y: clampedY },
-                final: { x, y },
-                devicePixelRatio: window.devicePixelRatio,
-                screenResolution: { width: screen.width, height: screen.height },
-                windowSize: { width: window.innerWidth, height: window.innerHeight },
-                mouseCaptured: this.mouseCaptured,
-                videoDisplayed: this.videoElement.style.display,
-                targetElement: event.target.tagName
-            });
-
             // Validate coordinates before sending
             if (isNaN(x) || isNaN(y) || x < 0 || y < 0) {
                 console.error('Invalid coordinates detected:', { x, y });
@@ -920,14 +910,12 @@ class KVMClient {
             }
 
             try {
-                const mouseEventData = {
+                await window.electronAPI.sendMouseEvent({
                     type: 'abs',
                     x: x,
                     y: y,
                     buttonsPressed: this.mouseButtonsPressed // Include button state for dragging
-                };
-                console.log('Sending to HID manager:', mouseEventData);
-                await window.electronAPI.sendMouseEvent(mouseEventData);
+                });
             } catch (error) {
                 console.error('Error sending absolute mouse position:', error);
             }
@@ -952,14 +940,6 @@ class KVMClient {
         const x = Math.round((clampedX / videoRect.width) * 0x7FFF);
         const y = Math.round((clampedY / videoRect.height) * 0x7FFF);
 
-        console.log('Mouse click DEBUG:', { 
-            clientX: event.clientX, 
-            clientY: event.clientY,
-            videoRect: { left: videoRect.left, top: videoRect.top, width: videoRect.width, height: videoRect.height },
-            relative: { x: relativeX, y: relativeY },
-            clamped: { x: clampedX, y: clampedY },
-            final: { x, y }
-        });
 
         try {
             await window.electronAPI.sendMouseEvent({
@@ -1000,7 +980,6 @@ class KVMClient {
                 x: x,  // Include current position
                 y: y   // Include current position
             });
-            console.log(`Button ${event.type} at position:`, { x, y, button: event.button });
         } catch (error) {
             console.error('Error sending mouse event:', error);
         }
@@ -1011,6 +990,15 @@ class KVMClient {
     async handleMouseWheel(event) {
         if (!this.hidConnected) return;
 
+        // Calculate current mouse position for the wheel event
+        const videoRect = this.videoElement.getBoundingClientRect();
+        const relativeX = event.clientX - videoRect.left;
+        const relativeY = event.clientY - videoRect.top;
+        const clampedX = Math.max(0, Math.min(relativeX, videoRect.width));
+        const clampedY = Math.max(0, Math.min(relativeY, videoRect.height));
+        const x = Math.round((clampedX / videoRect.width) * 0x7FFF);
+        const y = Math.round((clampedY / videoRect.height) * 0x7FFF);
+
         try {
             // Apply scroll direction preference
             const scrollMultiplier = this.reverseScroll ? -1 : 1;
@@ -1019,14 +1007,18 @@ class KVMClient {
             if (Math.abs(event.deltaY) > 0) {
                 await window.electronAPI.sendMouseEvent({
                     type: 'wheel',
-                    delta: event.deltaY * scrollMultiplier
+                    delta: event.deltaY * scrollMultiplier,
+                    x: x,  // Include current position
+                    y: y   // Include current position
                 });
             }
             if (Math.abs(event.deltaX) > 0) {
                 // Some systems support horizontal scrolling
                 await window.electronAPI.sendMouseEvent({
                     type: 'wheel',
-                    delta: event.deltaX * scrollMultiplier
+                    delta: event.deltaX * scrollMultiplier,
+                    x: x,  // Include current position
+                    y: y   // Include current position
                 });
             }
         } catch (error) {
@@ -1173,9 +1165,11 @@ class KVMClient {
         
         console.log('Header fully removed and video extended for macOS control');
         
+        // Show control mode notification
+        this.showControlModeNotification();
+        
         if (this.mouseMode === 'relative') {
-            // Relative mode: hide cursor and show overlay for capturing
-            this.mouseCaptureOverlay.style.display = 'block';
+            // Relative mode: hide cursor and request pointer lock
             document.body.style.cursor = 'none';
             
             // Request pointer lock for relative mode
@@ -1186,8 +1180,7 @@ class KVMClient {
                 console.error('Pointer lock request failed:', error);
             });
         } else {
-            // Absolute mode: keep cursor visible, just enable click handling
-            this.mouseCaptureOverlay.style.display = 'none';
+            // Absolute mode: keep cursor visible
             document.body.style.cursor = 'default';
         }
     }
@@ -1658,7 +1651,7 @@ class KVMClient {
                 border-radius: 6px;
                 font-size: 14px;
                 font-weight: 500;
-                z-index: 1500;
+                z-index: 10001;
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
                 transition: all 0.3s ease;
                 max-width: 300px;
@@ -1689,33 +1682,54 @@ class KVMClient {
         }, 4000);
     }
 
-    logSystemEnvironment() {
-        console.log('=== SYSTEM ENVIRONMENT DEBUG ===');
-        console.log('Platform:', navigator.platform);
-        console.log('User Agent:', navigator.userAgent);
-        console.log('Device Pixel Ratio:', window.devicePixelRatio);
-        console.log('Screen Resolution:', { width: screen.width, height: screen.height });
-        console.log('Screen Available:', { width: screen.availWidth, height: screen.availHeight });
-        console.log('Window Inner Size:', { width: window.innerWidth, height: window.innerHeight });
-        console.log('Window Outer Size:', { width: window.outerWidth, height: window.outerHeight });
-        console.log('Document Size:', { 
-            width: document.documentElement.clientWidth, 
-            height: document.documentElement.clientHeight 
-        });
-        
-        // Check if any zoom or scaling is applied
-        const testDiv = document.createElement('div');
-        testDiv.style.width = '1px';
-        testDiv.style.height = '1px';
-        testDiv.style.position = 'absolute';
-        testDiv.style.top = '-1000px';
-        document.body.appendChild(testDiv);
-        const testRect = testDiv.getBoundingClientRect();
-        document.body.removeChild(testDiv);
-        
-        console.log('CSS Pixel Test:', { width: testRect.width, height: testRect.height });
-        console.log('Browser Zoom Factor:', testRect.width !== 1 ? `${testRect.width}x` : 'None');
-        console.log('==================================');
+    showControlModeNotification() {
+        // Create notification element if it doesn't exist
+        let notification = document.getElementById('controlModeNotification');
+        if (!notification) {
+            notification = document.createElement('div');
+            notification.id = 'controlModeNotification';
+            notification.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                left: 20px;
+                background-color: rgba(0, 0, 0, 0.9);
+                color: white;
+                padding: 12px 16px;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 500;
+                z-index: 10002;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(8px);
+                transition: all 0.3s ease;
+                max-width: 280px;
+                word-wrap: break-word;
+            `;
+            document.body.appendChild(notification);
+        }
+
+        // Set the content with HTML for styled keys
+        notification.innerHTML = `
+            <div style="font-weight: 600; margin-bottom: 6px;">🎮 Control Mode Active</div>
+            <div style="margin-bottom: 4px;">Press <kbd style="background-color: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 3px; padding: 2px 6px; font-size: 11px; font-family: inherit; font-weight: 500;">Ctrl</kbd> + <kbd style="background-color: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 3px; padding: 2px 6px; font-size: 11px; font-family: inherit; font-weight: 500;">Alt</kbd> to exit</div>
+            <div style="font-size: 11px; opacity: 0.7;">F3/F11 keys via test buttons</div>
+        `;
+
+        notification.style.display = 'block';
+        notification.style.opacity = '1';
+
+        // Auto-hide after 2 seconds
+        setTimeout(() => {
+            if (notification && this.mouseCaptured) {
+                notification.style.opacity = '0';
+                setTimeout(() => {
+                    if (notification && notification.parentNode) {
+                        notification.style.display = 'none';
+                    }
+                }, 300);
+            }
+        }, 2000);
     }
 
     async toggleFullscreen() {

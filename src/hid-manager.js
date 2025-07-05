@@ -130,8 +130,6 @@ class HIDManager {
     }
 
     try {
-      // Log incoming data for debugging
-      console.log('HID Manager received mouse event:', data);
       let buffer;
 
       switch (data.type) {
@@ -143,7 +141,6 @@ class HIDManager {
           const deltaX_byte = deltaX < 0 ? (256 + deltaX) : deltaX;
           const deltaY_byte = deltaY < 0 ? (256 + deltaY) : deltaY;
           buffer = [7, 0, 0, deltaX_byte, deltaY_byte, 0, 0, 0, 0];
-          console.log('Relative movement:', { deltaX, deltaY, deltaX_byte, deltaY_byte });
           break;
         case 'abs':
           // Absolute mouse positioning (report ID 2)
@@ -163,14 +160,6 @@ class HIDManager {
           const y_high = (y_int >> 8) & 0x7F; // Mask to 7 bits for safety
           
           buffer = [2, 0, buttonState, x_low, x_high, y_low, y_high, 0, 0];
-          console.log('Absolute position DEBUG:', { 
-            original: { x: data.x, y: data.y }, 
-            scaled: { x: x_scaled, y: y_scaled },
-            integers: { x: x_int, y: y_int },
-            bytes: { x_low, x_high, y_low, y_high },
-            buttonState,
-            buffer: buffer.slice()
-          });
           break;
         case 'mousedown':
         case 'mouseup':
@@ -194,17 +183,26 @@ class HIDManager {
           const clickButtonState = data.buttonsPressed || (data.type === 'mousedown' ? this.getMouseButtonCode(data.button) : 0);
           
           buffer = [2, 0, clickButtonState, click_x_low, click_x_high, click_y_low, click_y_high, 0, 0];
-          console.log(`${data.type} with position:`, { 
-            x: click_x, y: click_y, 
-            buttons: clickButtonState,
-            bytes: { click_x_low, click_x_high, click_y_low, click_y_high }
-          });
           break;
         case 'wheel':
-          // Mouse wheel scroll - use proper wheel delta scaling
+          // Mouse wheel scroll - include position where scrolling occurs
+          const wheel_x = data.x !== undefined ? Math.max(0, Math.min(0x7FFF, data.x)) : (this.lastX || 0);
+          const wheel_y = data.y !== undefined ? Math.max(0, Math.min(0x7FFF, data.y)) : (this.lastY || 0);
+          
+          // Store last position
+          if (data.x !== undefined) this.lastX = wheel_x;
+          if (data.y !== undefined) this.lastY = wheel_y;
+          
+          const wheel_x_int = Math.round(wheel_x);
+          const wheel_y_int = Math.round(wheel_y);
+          
+          const wheel_x_low = wheel_x_int & 0xFF;
+          const wheel_x_high = (wheel_x_int >> 8) & 0x7F;
+          const wheel_y_low = wheel_y_int & 0xFF;
+          const wheel_y_high = (wheel_y_int >> 8) & 0x7F;
+          
           const wheelDelta = Math.max(-127, Math.min(127, Math.round(data.delta / 120)));
-          buffer = [2, 0, 0, 0, 0, 0, 0, wheelDelta, 0];
-          console.log('Wheel scroll:', { originalDelta: data.delta, scaledDelta: wheelDelta });
+          buffer = [2, 0, 0, wheel_x_low, wheel_x_high, wheel_y_low, wheel_y_high, wheelDelta, 0];
           break;
         case 'reset':
           // Reset mouse state
@@ -215,19 +213,8 @@ class HIDManager {
       }
 
       // Python rotation: buffer[-1:] + buffer[:-1] then buffer[0] = 0
-      console.log('Buffer before rotation:', buffer);
       const rotatedBuffer = [buffer[8], ...buffer.slice(0, 8)];
       rotatedBuffer[0] = 0;
-      
-      console.log('Buffer after rotation:', rotatedBuffer);
-      console.log('Coordinate bytes in final buffer:', {
-        x_low: rotatedBuffer[4],
-        x_high: rotatedBuffer[5], 
-        y_low: rotatedBuffer[6],
-        y_high: rotatedBuffer[7],
-        reconstructed_x: rotatedBuffer[4] + (rotatedBuffer[5] << 8),
-        reconstructed_y: rotatedBuffer[6] + (rotatedBuffer[7] << 8)
-      });
       
       this.device.write(rotatedBuffer);
       return { success: true };

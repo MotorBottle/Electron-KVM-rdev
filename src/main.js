@@ -16,7 +16,8 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     },
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: process.platform === 'darwin' ? 'default' : 'default',
+    title: 'KVM Remote Control',
     show: false,
     // Try to prevent macOS from handling function keys
     alwaysOnTop: false,
