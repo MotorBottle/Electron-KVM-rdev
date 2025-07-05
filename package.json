@@ -5,7 +5,7 @@
   "main": "src/main.js",
   "author": "MotorBottle",
   "license": "MIT",
-  "homepage": "https://github.com/osrbot/kvm-client",
+  "homepage": "https://github.com/MotorBottle/USB-KVM-Electron",
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",

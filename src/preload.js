@@ -15,5 +15,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendKeyboardEvent: (data) => ipcRenderer.invoke('send-keyboard-event', data),
   
   // Global key events from main process
-  onGlobalKeyPressed: (callback) => ipcRenderer.on('global-key-pressed', callback)
+  onGlobalKeyPressed: (callback) => ipcRenderer.on('global-key-pressed', callback),
+  
+  // Window controls
+  toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen')
 });

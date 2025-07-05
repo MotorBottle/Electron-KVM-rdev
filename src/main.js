@@ -228,3 +228,18 @@ ipcMain.handle('send-keyboard-event', async (event, data) => {
 ipcMain.handle('get-stream-url', async () => {
   return videoServer.getStreamUrl();
 });
+
+ipcMain.handle('toggle-fullscreen', async () => {
+  if (mainWindow) {
+    const isFullscreen = mainWindow.isFullScreen();
+    mainWindow.setFullScreen(!isFullscreen);
+    
+    // Hide menu bar on Windows when fullscreen
+    if (process.platform === 'win32') {
+      mainWindow.setMenuBarVisibility(isFullscreen);
+    }
+    
+    return !isFullscreen;
+  }
+  return false;
+});

@@ -11,6 +11,10 @@ class KVMClient {
         this.mouseButtonsPressed = 0; // Track which buttons are pressed
         this.reverseScroll = false; // Natural scrolling direction
         
+        // Platform detection
+        this.isWindows = navigator.platform.indexOf('Win') > -1;
+        this.isMacOS = navigator.platform.indexOf('Mac') > -1;
+        
         // Load saved settings
         this.loadSettings();
         
@@ -49,6 +53,7 @@ class KVMClient {
         // Quick control buttons
         this.sendCADBtn = document.getElementById('sendCAD');
         this.virtualKeyboardBtn = document.getElementById('virtualKeyboard');
+        this.toggleFullscreenBtn = document.getElementById('toggleFullscreen');
         
         // Virtual keyboard elements
         this.virtualKeyboardModal = document.getElementById('virtualKeyboardModal');
@@ -161,6 +166,7 @@ class KVMClient {
         // Quick control buttons
         this.sendCADBtn.addEventListener('click', () => this.sendCtrlAltDelete());
         this.virtualKeyboardBtn.addEventListener('click', () => this.showVirtualKeyboard());
+        this.toggleFullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
         this.closeVirtualKeyboardBtn.addEventListener('click', () => this.hideVirtualKeyboard());
         this.sendCombinationBtn.addEventListener('click', () => this.sendCurrentCombination());
         this.clearCombinationBtn.addEventListener('click', () => this.clearCombination());
@@ -882,8 +888,28 @@ class KVMClient {
         } else if (this.mouseMode === 'absolute') {
             // Send absolute position for absolute mode
             const videoRect = this.videoElement.getBoundingClientRect();
-            const x = Math.round((event.clientX - videoRect.left) / videoRect.width * 0x7FFF);
-            const y = Math.round((event.clientY - videoRect.top) / videoRect.height * 0x7FFF);
+            
+            // Calculate relative position within the video element
+            let relativeX = event.clientX - videoRect.left;
+            let relativeY = event.clientY - videoRect.top;
+            
+            // Ensure coordinates are within bounds
+            relativeX = Math.max(0, Math.min(relativeX, videoRect.width));
+            relativeY = Math.max(0, Math.min(relativeY, videoRect.height));
+            
+            // Scale to HID coordinate space (0-32767)
+            const x = Math.round((relativeX / videoRect.width) * 0x7FFF);
+            const y = Math.round((relativeY / videoRect.height) * 0x7FFF);
+            
+            console.log('Mouse position:', { 
+                clientX: event.clientX, 
+                clientY: event.clientY, 
+                videoRect: { left: videoRect.left, top: videoRect.top, width: videoRect.width, height: videoRect.height },
+                relativeX, 
+                relativeY, 
+                x, 
+                y 
+            });
 
             try {
                 await window.electronAPI.sendMouseEvent({
@@ -903,8 +929,18 @@ class KVMClient {
 
         // For absolute mode, use video element bounds, not overlay
         const videoRect = this.videoElement.getBoundingClientRect();
-        const x = Math.round((event.clientX - videoRect.left) / videoRect.width * 0x7FFF);
-        const y = Math.round((event.clientY - videoRect.top) / videoRect.height * 0x7FFF);
+        
+        // Calculate relative position within the video element
+        let relativeX = event.clientX - videoRect.left;
+        let relativeY = event.clientY - videoRect.top;
+        
+        // Ensure coordinates are within bounds
+        relativeX = Math.max(0, Math.min(relativeX, videoRect.width));
+        relativeY = Math.max(0, Math.min(relativeY, videoRect.height));
+        
+        // Scale to HID coordinate space (0-32767)
+        const x = Math.round((relativeX / videoRect.width) * 0x7FFF);
+        const y = Math.round((relativeY / videoRect.height) * 0x7FFF);
 
         console.log('Absolute mouse click:', { x, y, clientX: event.clientX, clientY: event.clientY });
 
@@ -1086,27 +1122,42 @@ class KVMClient {
     captureMouseKeyboard() {
         this.mouseCaptured = true;
         
-        // Multiple approaches for macOS compatibility
         const videoContainer = document.querySelector('.video-container');
         
-        // 1. Hide header completely
-        this.header.style.display = 'none';
-        this.headerVisible = false;
-        
-        // 2. Remove header from document flow temporarily
-        this.header.style.position = 'absolute';
-        this.header.style.top = '-200px';
-        this.header.style.pointerEvents = 'none';
-        
-        // 3. Ensure video container fills entire viewport
-        videoContainer.style.position = 'fixed';
-        videoContainer.style.top = '0';
-        videoContainer.style.left = '0';
-        videoContainer.style.width = '100vw';
-        videoContainer.style.height = '100vh';
-        videoContainer.style.zIndex = '9999';
-        
-        console.log('Header fully removed and video extended for macOS control');
+        if (this.isWindows) {
+            // Windows-specific handling
+            this.header.style.display = 'none';
+            this.headerVisible = false;
+            
+            // Ensure video container fills entire viewport without affecting layout
+            videoContainer.style.position = 'fixed';
+            videoContainer.style.top = '0';
+            videoContainer.style.left = '0';
+            videoContainer.style.width = '100vw';
+            videoContainer.style.height = '100vh';
+            videoContainer.style.zIndex = '9999';
+            
+            console.log('Windows: Header hidden and video container set to fullscreen');
+        } else {
+            // macOS and other platforms
+            this.header.style.display = 'none';
+            this.headerVisible = false;
+            
+            // Remove header from document flow temporarily
+            this.header.style.position = 'absolute';
+            this.header.style.top = '-200px';
+            this.header.style.pointerEvents = 'none';
+            
+            // Ensure video container fills entire viewport
+            videoContainer.style.position = 'fixed';
+            videoContainer.style.top = '0';
+            videoContainer.style.left = '0';
+            videoContainer.style.width = '100vw';
+            videoContainer.style.height = '100vh';
+            videoContainer.style.zIndex = '9999';
+            
+            console.log('macOS: Header fully removed and video extended for control');
+        }
         
         if (this.mouseMode === 'relative') {
             // Relative mode: hide cursor and show overlay for capturing
@@ -1622,6 +1673,24 @@ class KVMClient {
                 notification.style.display = 'none';
             }, 300);
         }, 4000);
+    }
+
+    async toggleFullscreen() {
+        try {
+            const isFullscreen = await window.electronAPI.toggleFullscreen();
+            console.log('Fullscreen toggled:', isFullscreen);
+            
+            // Update header visibility based on fullscreen state
+            if (isFullscreen) {
+                this.header.style.display = 'none';
+                this.headerVisible = false;
+            } else {
+                this.header.style.display = 'flex';
+                this.headerVisible = true;
+            }
+        } catch (error) {
+            console.error('Error toggling fullscreen:', error);
+        }
     }
 }
 
