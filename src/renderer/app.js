@@ -324,7 +324,7 @@ class KVMClient {
         // Device change detection
         if (navigator.mediaDevices) {
             navigator.mediaDevices.addEventListener('devicechange', () => {
-                this.refreshVideoDevices();
+                this.handleDeviceChange();
             });
         }
         
@@ -418,6 +418,80 @@ class KVMClient {
             }
         } catch (error) {
             console.error('Error refreshing video devices:', error);
+        }
+    }
+
+    async handleDeviceChange() {
+        console.log('Device change detected');
+        
+        // Store current video state
+        const wasVideoConnected = this.videoConnected;
+        const currentDeviceId = this.videoDevicesSelect.value;
+        const currentResolution = this.resolutionSelect.value;
+        const currentFPS = this.fpsSelect.value;
+        
+        // Stop current stream if running
+        if (this.currentStream) {
+            this.currentStream.getTracks().forEach(track => track.stop());
+            this.currentStream = null;
+            this.videoConnected = false;
+        }
+        
+        // Refresh device list
+        await this.refreshVideoDevices();
+        
+        // If video was connected, try to reconnect
+        if (wasVideoConnected) {
+            // Small delay to ensure device enumeration is complete
+            setTimeout(async () => {
+                try {
+                    // Try to find the same device by label/description
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                    
+                    let targetDevice = null;
+                    
+                    // First try to find by deviceId (same device)
+                    targetDevice = videoDevices.find(device => device.deviceId === currentDeviceId);
+                    
+                    // If not found by ID, try to find by label (device unplugged/replugged)
+                    if (!targetDevice && videoDevices.length > 0) {
+                        // Use first available device as fallback
+                        targetDevice = videoDevices[0];
+                        console.log('Original device not found, using first available device');
+                    }
+                    
+                    if (targetDevice) {
+                        // Select the device
+                        this.videoDevicesSelect.value = targetDevice.deviceId;
+                        
+                        // Rebuild resolution/FPS options
+                        await this.buildResolutionFPS();
+                        
+                        // Try to restore previous settings
+                        if (currentResolution && this.resolutionSelect.querySelector(`option[value="${currentResolution}"]`)) {
+                            this.resolutionSelect.value = currentResolution;
+                        }
+                        if (currentFPS && this.fpsSelect.querySelector(`option[value="${currentFPS}"]`)) {
+                            this.fpsSelect.value = currentFPS;
+                        }
+                        
+                        // Restart video stream
+                        await this.startVideo();
+                        console.log('Video stream automatically reconnected after device change');
+                    } else {
+                        console.warn('No video devices available after device change');
+                        this.updateVideoStatus();
+                        this.startVideoBtn.disabled = false;
+                        this.stopVideoBtn.disabled = true;
+                    }
+                } catch (error) {
+                    console.error('Error reconnecting video after device change:', error);
+                    this.updateVideoStatus();
+                    this.startVideoBtn.disabled = false;
+                    this.stopVideoBtn.disabled = true;
+                }
+            }, 1000); // 1 second delay
         }
     }
 
