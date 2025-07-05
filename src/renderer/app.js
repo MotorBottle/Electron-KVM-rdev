@@ -912,62 +912,54 @@ class KVMClient {
             
             if (this.isWindows) {
                 // Windows-specific coordinate handling
-                // Use offsetX/offsetY if available (more reliable on Windows)
-                if (typeof event.offsetX !== 'undefined' && typeof event.offsetY !== 'undefined') {
-                    // offsetX/offsetY are relative to the target element
-                    clientX = videoRect.left + event.offsetX;
-                    clientY = videoRect.top + event.offsetY;
-                    
-                    console.log('Windows using offsetX/Y:', {
-                        offsetX: event.offsetX,
-                        offsetY: event.offsetY,
-                        calculatedClientX: clientX,
-                        calculatedClientY: clientY
-                    });
-                } else {
-                    // Fallback to clientX/Y with adjustments
-                    const scale = window.devicePixelRatio || 1;
-                    clientX = event.clientX;
-                    clientY = event.clientY;
-                    
-                    console.log('Windows fallback to clientX/Y:', {
-                        scale,
-                        clientX,
-                        clientY
-                    });
-                }
+                // Use clientX/Y directly, don't recalculate
+                clientX = event.clientX;
+                clientY = event.clientY;
             }
             
             // Calculate relative position within the video element
-            let relativeX, relativeY;
-            
-            if (this.isWindows && typeof event.offsetX !== 'undefined' && typeof event.offsetY !== 'undefined') {
-                // On Windows, use offsetX/Y directly when available (most reliable)
-                relativeX = event.offsetX;
-                relativeY = event.offsetY;
-            } else {
-                // Standard calculation for other platforms
-                relativeX = clientX - videoRect.left;
-                relativeY = clientY - videoRect.top;
-            }
+            let relativeX = clientX - videoRect.left;
+            let relativeY = clientY - videoRect.top;
             
             // Ensure coordinates are within bounds
             relativeX = Math.max(0, Math.min(relativeX, videoRect.width));
             relativeY = Math.max(0, Math.min(relativeY, videoRect.height));
             
             // Scale to HID coordinate space (0-32767)
-            const x = Math.round((relativeX / videoRect.width) * 0x7FFF);
-            const y = Math.round((relativeY / videoRect.height) * 0x7FFF);
+            let x = Math.round((relativeX / videoRect.width) * 0x7FFF);
+            let y = Math.round((relativeY / videoRect.height) * 0x7FFF);
             
-            console.log('Mouse position:', { 
+            // Ensure coordinates are valid
+            x = Math.max(0, Math.min(x, 0x7FFF));
+            y = Math.max(0, Math.min(y, 0x7FFF));
+            
+            console.log('Mouse position DEBUG:', { 
                 platform: this.isWindows ? 'Windows' : 'Other',
-                clientX: clientX, 
-                clientY: clientY, 
-                videoRect: { left: videoRect.left, top: videoRect.top, width: videoRect.width, height: videoRect.height },
-                relativeX, 
-                relativeY, 
-                x, 
-                y 
+                event: {
+                    clientX: event.clientX,
+                    clientY: event.clientY,
+                    offsetX: event.offsetX,
+                    offsetY: event.offsetY,
+                    target: event.target.tagName
+                },
+                calculated: {
+                    clientX: clientX, 
+                    clientY: clientY
+                },
+                videoRect: { 
+                    left: videoRect.left, 
+                    top: videoRect.top, 
+                    width: videoRect.width, 
+                    height: videoRect.height 
+                },
+                coordinates: {
+                    relativeX, 
+                    relativeY, 
+                    finalX: x, 
+                    finalY: y,
+                    percentageX: (relativeX / videoRect.width * 100).toFixed(2) + '%',
+                    percentageY: (relativeY / videoRect.height * 100).toFixed(2) + '%'
+                }
             });
 
             try {
@@ -994,29 +986,14 @@ class KVMClient {
         let clientY = event.clientY;
         
         if (this.isWindows) {
-            // Windows-specific coordinate handling (same as handleMouseMove)
-            if (typeof event.offsetX !== 'undefined' && typeof event.offsetY !== 'undefined') {
-                clientX = videoRect.left + event.offsetX;
-                clientY = videoRect.top + event.offsetY;
-            } else {
-                const scale = window.devicePixelRatio || 1;
-                clientX = event.clientX;
-                clientY = event.clientY;
-            }
+            // Windows-specific coordinate handling
+            clientX = event.clientX;
+            clientY = event.clientY;
         }
         
         // Calculate relative position within the video element
-        let relativeX, relativeY;
-        
-        if (this.isWindows && typeof event.offsetX !== 'undefined' && typeof event.offsetY !== 'undefined') {
-            // On Windows, use offsetX/Y directly when available (most reliable)
-            relativeX = event.offsetX;
-            relativeY = event.offsetY;
-        } else {
-            // Standard calculation for other platforms
-            relativeX = clientX - videoRect.left;
-            relativeY = clientY - videoRect.top;
-        }
+        let relativeX = clientX - videoRect.left;
+        let relativeY = clientY - videoRect.top;
         
         // Ensure coordinates are within bounds
         relativeX = Math.max(0, Math.min(relativeX, videoRect.width));
@@ -1026,7 +1003,32 @@ class KVMClient {
         const x = Math.round((relativeX / videoRect.width) * 0x7FFF);
         const y = Math.round((relativeY / videoRect.height) * 0x7FFF);
 
-        console.log('Absolute mouse click:', { x, y, clientX: event.clientX, clientY: event.clientY });
+        console.log('Absolute mouse click DEBUG:', { 
+            platform: this.isWindows ? 'Windows' : 'Other',
+            mouseMode: this.mouseMode,
+            event: {
+                clientX: event.clientX,
+                clientY: event.clientY,
+                offsetX: event.offsetX,
+                offsetY: event.offsetY,
+                button: event.button,
+                target: event.target.tagName
+            },
+            coordinates: {
+                relativeX, 
+                relativeY, 
+                finalX: x, 
+                finalY: y,
+                percentageX: (relativeX / videoRect.width * 100).toFixed(2) + '%',
+                percentageY: (relativeY / videoRect.height * 100).toFixed(2) + '%'
+            },
+            videoRect: { 
+                left: videoRect.left, 
+                top: videoRect.top, 
+                width: videoRect.width, 
+                height: videoRect.height 
+            }
+        });
 
         try {
             await window.electronAPI.sendMouseEvent({

@@ -104,6 +104,10 @@ body {
     min-width: 80px;
 }
 
+#hidDevices {
+    min-width: 150px;
+}
+
 .device-select:focus {
     outline: none;
     border-color: #007acc;
@@ -787,12 +791,14 @@ input:checked + .toggle-slider:before {
 /* Quick Controls Styling */
 .quick-controls .btn {
     min-width: 50px;
+    height: 32px;
 }
 
 #sendCAD {
     font-weight: bold;
     font-size: 11px;
     min-width: 90px;
+    height: 32px;
 }
 
 #virtualKeyboard {
@@ -801,6 +807,15 @@ input:checked + .toggle-slider:before {
     display: flex;
     align-items: center;
     justify-content: center;
+    height: 32px;
+}
+
+#toggleFullscreen {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
 }
 
 /* Responsive design */
