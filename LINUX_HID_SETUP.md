@@ -1,0 +1,61 @@
+# Linux HID Device Setup
+
+This document explains how to set up HID device permissions on Linux systems for the KVM Client.
+
+## Automatic Setup (Recommended)
+
+### For .deb package users:
+The .deb package will automatically set up HID permissions during installation.
+
+### For AppImage users:
+1. Extract the post-install script from the app directory
+2. Run: `./post-install.sh`
+
+## Manual Setup
+
+If automatic setup doesn't work, follow these steps:
+
+### 1. Install udev rules
+```bash
+sudo cp 99-hidraw-permissions.rules /etc/udev/rules.d/
+sudo chmod 644 /etc/udev/rules.d/99-hidraw-permissions.rules
+```
+
+### 2. Add user to plugdev group
+```bash
+sudo usermod -a -G plugdev $USER
+```
+
+### 3. Reload udev rules
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+### 4. Log out and log back in
+This is required for group membership changes to take effect.
+
+## Troubleshooting
+
+### Permission Denied Errors
+- Ensure you're in the `plugdev` group: `groups $USER`
+- Check if udev rules are installed: `ls -la /etc/udev/rules.d/99-hidraw-permissions.rules`
+- Verify HID devices are accessible: `ls -la /dev/hidraw*`
+
+### Alternative: Run with sudo
+As a temporary workaround, you can run the application with sudo:
+```bash
+sudo ./KVM-Client.AppImage
+```
+
+Note: Running with sudo is not recommended for security reasons and should only be used for testing.
+
+## Dependencies
+The application requires:
+- libusb-1.0-0
+- libudev1
+
+Install on Ubuntu/Debian:
+```bash
+sudo apt-get install libusb-1.0-0-dev libudev-dev
+```

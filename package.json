@@ -38,6 +38,14 @@
       {
         "from": "README.md",
         "to": "README.md"
+      },
+      {
+        "from": "assets/99-hidraw-permissions.rules",
+        "to": "99-hidraw-permissions.rules"
+      },
+      {
+        "from": "assets/post-install.sh",
+        "to": "post-install.sh"
       }
     ],
     "mac": {
@@ -70,9 +78,24 @@
         }
       ]
     },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
     },
     "linux": {
       "category": "Utility",
@@ -80,8 +103,16 @@
         {
           "target": "AppImage",
           "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64", "arm64"]
         }
       ]
+    },
+    "deb": {
+      "depends": ["libusb-1.0-0", "libudev1"],
+      "afterInstall": "assets/post-install.sh"
     }
   }
 }
