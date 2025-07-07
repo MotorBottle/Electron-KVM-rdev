@@ -102,7 +102,24 @@ class KVMClient {
                 this.reverseScroll = savedScrollReverse === 'true';
             }
             
-            console.log('Loaded settings:', { mouseMode: this.mouseMode, reverseScroll: this.reverseScroll });
+            // Load video source preferences
+            const savedVideoDevice = localStorage.getItem('kvmVideoDevice');
+            const savedVideoDeviceLabel = localStorage.getItem('kvmVideoDeviceLabel');
+            const savedResolution = localStorage.getItem('kvmResolution');
+            const savedFPS = localStorage.getItem('kvmFPS');
+            
+            this.savedVideoPreferences = {
+                deviceId: savedVideoDevice,
+                deviceLabel: savedVideoDeviceLabel,
+                resolution: savedResolution,
+                fps: savedFPS
+            };
+            
+            console.log('Loaded settings:', { 
+                mouseMode: this.mouseMode, 
+                reverseScroll: this.reverseScroll,
+                videoPreferences: this.savedVideoPreferences
+            });
         } catch (error) {
             console.error('Error loading settings:', error);
         }
@@ -115,6 +132,30 @@ class KVMClient {
             console.log('Saved settings:', { mouseMode: this.mouseMode, reverseScroll: this.reverseScroll });
         } catch (error) {
             console.error('Error saving settings:', error);
+        }
+    }
+
+    saveVideoPreferences() {
+        try {
+            const deviceId = this.videoDevicesSelect.value;
+            const deviceLabel = this.videoDevicesSelect.selectedOptions[0]?.textContent || '';
+            const resolution = this.resolutionSelect.value;
+            const fps = this.fpsSelect.value;
+            
+            if (deviceId) {
+                localStorage.setItem('kvmVideoDevice', deviceId);
+                localStorage.setItem('kvmVideoDeviceLabel', deviceLabel);
+            }
+            if (resolution) {
+                localStorage.setItem('kvmResolution', resolution);
+            }
+            if (fps) {
+                localStorage.setItem('kvmFPS', fps);
+            }
+            
+            console.log('Saved video preferences:', { deviceId, deviceLabel, resolution, fps });
+        } catch (error) {
+            console.error('Error saving video preferences:', error);
         }
     }
 
@@ -132,14 +173,23 @@ class KVMClient {
 
     bindEvents() {
         // Video controls
-        this.refreshDevicesBtn.addEventListener('click', () => this.refreshVideoDevices());
+        this.refreshDevicesBtn.addEventListener('click', () => this.refreshVideoDevicesWithReconnect());
         this.startVideoBtn.addEventListener('click', () => this.startVideo());
         this.stopVideoBtn.addEventListener('click', () => this.stopVideo());
         
         // Device selection changes
-        this.videoDevicesSelect.addEventListener('change', () => this.buildResolutionFPS());
-        this.resolutionSelect.addEventListener('change', () => this.buildFPS());
-        this.fpsSelect.addEventListener('change', () => this.startVideo());
+        this.videoDevicesSelect.addEventListener('change', () => {
+            this.buildResolutionFPS();
+            this.saveVideoPreferences();
+        });
+        this.resolutionSelect.addEventListener('change', () => {
+            this.buildFPS();
+            this.saveVideoPreferences();
+        });
+        this.fpsSelect.addEventListener('change', () => {
+            this.startVideo();
+            this.saveVideoPreferences();
+        });
         
         // HID controls
         this.connectHIDBtn.addEventListener('click', () => this.connectHID());
@@ -392,6 +442,55 @@ class KVMClient {
         this.startHIDMonitoring();
     }
 
+    async refreshVideoDevicesWithReconnect() {
+        // Store current video state
+        const wasVideoConnected = this.videoConnected;
+        const currentDeviceId = this.videoDevicesSelect.value;
+        const currentResolution = this.resolutionSelect.value;
+        const currentFPS = this.fpsSelect.value;
+        
+        // Disconnect video if connected
+        if (wasVideoConnected) {
+            await this.stopVideo();
+        }
+        
+        // Refresh device list
+        await this.refreshVideoDevices();
+        
+        // If video was connected, try to reconnect with same settings
+        if (wasVideoConnected) {
+            // Small delay to ensure device enumeration is complete
+            setTimeout(async () => {
+                try {
+                    // Try to restore previous settings
+                    if (currentDeviceId && this.videoDevicesSelect.querySelector(`option[value="${currentDeviceId}"]`)) {
+                        this.videoDevicesSelect.value = currentDeviceId;
+                    }
+                    
+                    // Rebuild resolution/FPS options
+                    await this.buildResolutionFPS();
+                    
+                    // Try to restore previous settings
+                    if (currentResolution && this.resolutionSelect.querySelector(`option[value="${currentResolution}"]`)) {
+                        this.resolutionSelect.value = currentResolution;
+                        await this.buildFPS();
+                    }
+                    if (currentFPS && this.fpsSelect.querySelector(`option[value="${currentFPS}"]`)) {
+                        this.fpsSelect.value = currentFPS;
+                    }
+                    
+                    // Restart video stream
+                    if (this.videoDevicesSelect.value && this.resolutionSelect.value && this.fpsSelect.value) {
+                        await this.startVideo();
+                        console.log('Video stream reconnected after refresh');
+                    }
+                } catch (error) {
+                    console.error('Error reconnecting video after refresh:', error);
+                }
+            }, 500); // 500ms delay
+        }
+    }
+
     async refreshVideoDevices() {
         try {
             const devices = await navigator.mediaDevices.enumerateDevices();
@@ -411,9 +510,34 @@ class KVMClient {
                 return;
             }
 
-            // Auto-select first device if none selected
-            if (!this.videoDevicesSelect.value && videoDevices.length > 0) {
+            // Try to restore saved device preference first
+            let deviceSelected = false;
+            if (this.savedVideoPreferences?.deviceId) {
+                // First try to find by exact deviceId
+                const savedDevice = videoDevices.find(device => device.deviceId === this.savedVideoPreferences.deviceId);
+                if (savedDevice) {
+                    this.videoDevicesSelect.value = savedDevice.deviceId;
+                    deviceSelected = true;
+                    console.log('Restored saved video device by ID:', savedDevice.label);
+                } else if (this.savedVideoPreferences.deviceLabel) {
+                    // If deviceId not found, try to find by label (device may have been reconnected)
+                    const deviceByLabel = videoDevices.find(device => 
+                        device.label === this.savedVideoPreferences.deviceLabel
+                    );
+                    if (deviceByLabel) {
+                        this.videoDevicesSelect.value = deviceByLabel.deviceId;
+                        deviceSelected = true;
+                        console.log('Restored saved video device by label:', deviceByLabel.label);
+                    }
+                }
+            }
+            
+            // Auto-select first device if none selected and no saved preference
+            if (!deviceSelected && !this.videoDevicesSelect.value && videoDevices.length > 0) {
                 this.videoDevicesSelect.selectedIndex = 1; // Skip the "Select..." option
+            }
+            
+            if (this.videoDevicesSelect.value) {
                 await this.buildResolutionFPS();
             }
         } catch (error) {
@@ -530,12 +654,25 @@ class KVMClient {
                 this.resolutionSelect.appendChild(option);
             });
 
-            // Auto-select 1920x1080 if available, otherwise first option
-            const preferred = this.resolutionSelect.querySelector('option[value="1920x1080"]');
-            if (preferred) {
-                this.resolutionSelect.value = '1920x1080';
-            } else {
-                this.resolutionSelect.selectedIndex = 1;
+            // Try to restore saved resolution preference first
+            let resolutionSelected = false;
+            if (this.savedVideoPreferences?.resolution) {
+                const savedResolutionOption = this.resolutionSelect.querySelector(`option[value="${this.savedVideoPreferences.resolution}"]`);
+                if (savedResolutionOption) {
+                    this.resolutionSelect.value = this.savedVideoPreferences.resolution;
+                    resolutionSelected = true;
+                    console.log('Restored saved resolution:', this.savedVideoPreferences.resolution);
+                }
+            }
+            
+            // Auto-select 1920x1080 if available and no saved preference
+            if (!resolutionSelected) {
+                const preferred = this.resolutionSelect.querySelector('option[value="1920x1080"]');
+                if (preferred) {
+                    this.resolutionSelect.value = '1920x1080';
+                } else {
+                    this.resolutionSelect.selectedIndex = 1;
+                }
             }
 
             await this.buildFPS();
@@ -582,11 +719,24 @@ class KVMClient {
                 this.fpsSelect.appendChild(option);
             });
 
-            // Auto-select 60 fps if available, otherwise first option
-            if (availableFPS.includes(60)) {
-                this.fpsSelect.value = '60';
-            } else {
-                this.fpsSelect.selectedIndex = 1;
+            // Try to restore saved FPS preference first
+            let fpsSelected = false;
+            if (this.savedVideoPreferences?.fps) {
+                const savedFPS = parseInt(this.savedVideoPreferences.fps);
+                if (availableFPS.includes(savedFPS)) {
+                    this.fpsSelect.value = this.savedVideoPreferences.fps;
+                    fpsSelected = true;
+                    console.log('Restored saved FPS:', this.savedVideoPreferences.fps);
+                }
+            }
+            
+            // Auto-select 60 fps if available and no saved preference
+            if (!fpsSelected) {
+                if (availableFPS.includes(60)) {
+                    this.fpsSelect.value = '60';
+                } else {
+                    this.fpsSelect.selectedIndex = 1;
+                }
             }
 
             // Auto-start if this is initial setup

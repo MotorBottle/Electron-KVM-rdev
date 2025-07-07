@@ -26,7 +26,7 @@
     "ws": "^8.16.0"
   },
   "build": {
-    "appId": "com.osrbot.kvm-client",
+    "appId": "com.motorbottle.kvm-client",
     "productName": "KVM Client",
     "directories": {
       "output": "dist"
