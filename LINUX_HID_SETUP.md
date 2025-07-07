@@ -80,8 +80,22 @@ Note: Running with sudo is not recommended for security reasons and should only 
 The application requires:
 - libusb-1.0-0
 - libudev1
+- HID kernel modules
 
 Install on Ubuntu/Debian:
 ```bash
 sudo apt-get install libusb-1.0-0-dev libudev-dev
+```
+
+### Ubuntu 20.04 Specific Issues
+On Ubuntu 20.04, you may need to manually load HID modules:
+```bash
+sudo modprobe hid
+sudo modprobe hid-generic
+```
+
+To make HID modules load automatically at boot, add them to `/etc/modules`:
+```bash
+echo "hid" | sudo tee -a /etc/modules
+echo "hid-generic" | sudo tee -a /etc/modules
 ```

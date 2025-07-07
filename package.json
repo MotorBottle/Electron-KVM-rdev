@@ -114,9 +114,10 @@
       ]
     },
     "deb": {
-      "depends": ["libusb-1.0-0", "libudev1"],
+      "depends": ["libusb-1.0-0", "libudev1", "libc6"],
       "afterInstall": "assets/post-install.sh",
-      "maintainer": "MotorBottle <motorbottt@gmail.com>"
+      "maintainer": "MotorBottle <motorbottt@gmail.com>",
+      "synopsis": "KVM Client for USB HID devices"
     }
   }
 }

@@ -8,6 +8,24 @@ TEMP_RULES="/tmp/99-hidraw-permissions.rules"
 
 echo "Setting up HID device permissions..."
 
+# Check if HID modules are loaded and load them if needed
+if ! lsmod | grep -q "hid"; then
+    echo "Loading HID kernel modules..."
+    if [ "$EUID" -eq 0 ]; then
+        modprobe hid 2>/dev/null || echo "WARNING: Could not load HID module"
+        modprobe hid-generic 2>/dev/null || echo "WARNING: Could not load HID generic module"
+    else
+        if command -v sudo >/dev/null 2>&1; then
+            sudo modprobe hid 2>/dev/null || echo "WARNING: Could not load HID module"
+            sudo modprobe hid-generic 2>/dev/null || echo "WARNING: Could not load HID generic module"
+        else
+            echo "WARNING: Unable to load HID modules. Please run:"
+            echo "sudo modprobe hid"
+            echo "sudo modprobe hid-generic"
+        fi
+    fi
+fi
+
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RULES_SOURCE="$SCRIPT_DIR/99-hidraw-permissions.rules"
