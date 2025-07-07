@@ -4,5 +4,9 @@ SUBSYSTEM=="usb", MODE="0666", GROUP="plugdev"
 SUBSYSTEM=="hidraw", MODE="0666", GROUP="plugdev"
 KERNEL=="hidraw*", MODE="0666", GROUP="plugdev"
 
-# Specific rules for common HID devices
+# More permissive fallback rules
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="*", MODE="0666", GROUP="plugdev"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="*", ATTRS{idProduct}=="*", MODE="0666", GROUP="plugdev"
+
+# Catch-all rule for HID devices
+ACTION=="add", KERNEL=="hidraw*", MODE="0666", GROUP="plugdev"

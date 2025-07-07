@@ -38,9 +38,35 @@ This is required for group membership changes to take effect.
 ## Troubleshooting
 
 ### Permission Denied Errors
-- Ensure you're in the `plugdev` group: `groups $USER`
-- Check if udev rules are installed: `ls -la /etc/udev/rules.d/99-hidraw-permissions.rules`
-- Verify HID devices are accessible: `ls -la /dev/hidraw*`
+1. **Check group membership**: `groups $USER`
+   - You should see `plugdev` in the output
+   - If not, run: `sudo usermod -a -G plugdev $USER`
+
+2. **Check udev rules**: `ls -la /etc/udev/rules.d/99-hidraw-permissions.rules`
+   - File should exist and be readable
+
+3. **Check HID device permissions**: `ls -la /dev/hidraw*`
+   - Devices should be accessible to plugdev group
+
+4. **Log out and log back in** - This is crucial for group changes to take effect
+
+5. **Reload udev rules manually**:
+   ```bash
+   sudo udevadm control --reload-rules
+   sudo udevadm trigger
+   ```
+
+6. **Set permissions manually** (if needed):
+   ```bash
+   sudo chmod 666 /dev/hidraw*
+   sudo chgrp plugdev /dev/hidraw*
+   ```
+
+### After .deb Installation
+The post-install script should run automatically, but if it doesn't:
+```bash
+sudo /opt/KVM\ Client/resources/post-install.sh
+```
 
 ### Alternative: Run with sudo
 As a temporary workaround, you can run the application with sudo:

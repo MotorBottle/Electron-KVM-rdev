@@ -115,7 +115,8 @@
     },
     "deb": {
       "depends": ["libusb-1.0-0", "libudev1"],
-      "afterInstall": "assets/post-install.sh"
+      "afterInstall": "assets/post-install.sh",
+      "maintainer": "MotorBottle <motorbottt@gmail.com>"
     }
   }
 }
