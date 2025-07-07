@@ -10,6 +10,7 @@ class KVMClient {
         this.hideTimer = null;
         this.mouseButtonsPressed = 0; // Track which buttons are pressed
         this.reverseScroll = false; // Natural scrolling direction
+        this.isFullscreen = false; // Track fullscreen state
         
         // Load saved settings
         this.loadSettings();
@@ -1334,13 +1335,23 @@ class KVMClient {
         // Don't auto-show header when mouse is captured
         if (this.mouseCaptured) return;
         
-        this.showHeader();
-        clearTimeout(this.hideTimer);
-        this.hideTimer = setTimeout(() => this.hideHeader(), 2000);
+        // Only auto-hide in fullscreen mode
+        if (this.isFullscreen) {
+            this.showHeader();
+            clearTimeout(this.hideTimer);
+            this.hideTimer = setTimeout(() => this.hideHeader(), 2000);
+        } else {
+            // Always show header when not in fullscreen
+            this.showHeader();
+            clearTimeout(this.hideTimer);
+        }
     }
 
     handleFullscreenChange() {
-        if (document.fullscreenElement) {
+        // Detect fullscreen state from DOM
+        this.isFullscreen = !!document.fullscreenElement;
+        
+        if (this.isFullscreen) {
             this.showHeader();
             clearTimeout(this.hideTimer);
             this.hideTimer = setTimeout(() => this.hideHeader(), 2000);
@@ -1961,13 +1972,20 @@ class KVMClient {
             const isFullscreen = await window.electronAPI.toggleFullscreen();
             console.log('Fullscreen toggled:', isFullscreen);
             
-            // Update header visibility based on fullscreen state
+            // Store fullscreen state for header auto-hide logic
+            this.isFullscreen = isFullscreen;
+            
             if (isFullscreen) {
-                this.header.style.display = 'none';
-                this.headerVisible = false;
+                // In fullscreen mode, enable auto-hide behavior
+                this.header.style.display = 'flex'; // Keep header available for auto-hide
+                this.showHeader(); // Show initially
+                clearTimeout(this.hideTimer);
+                this.hideTimer = setTimeout(() => this.hideHeader(), 2000); // Auto-hide after 2 seconds
             } else {
+                // Not in fullscreen, always show header
                 this.header.style.display = 'flex';
-                this.headerVisible = true;
+                this.showHeader();
+                clearTimeout(this.hideTimer); // No auto-hide when not fullscreen
             }
         } catch (error) {
             console.error('Error toggling fullscreen:', error);
