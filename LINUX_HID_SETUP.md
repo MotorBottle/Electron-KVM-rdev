@@ -88,6 +88,20 @@ sudo apt-get install libusb-1.0-0-dev libudev-dev
 ```
 
 ### Ubuntu 20.04 Specific Issues
+
+#### GLIBC Compatibility Issue
+Ubuntu 20.04 has an older GLIBC version that may cause the error:
+```
+Error: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.33' not found
+```
+
+**Solution**: Use the .deb package which rebuilds native modules for compatibility, or manually rebuild:
+```bash
+# If using AppImage fails, try the .deb package instead
+sudo dpkg -i electron-kvm-client_1.0.0_amd64.deb
+```
+
+#### HID Modules (if needed)
 On Ubuntu 20.04, you may need to manually load HID modules:
 ```bash
 sudo modprobe hid
