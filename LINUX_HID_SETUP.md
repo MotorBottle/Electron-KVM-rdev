@@ -90,19 +90,33 @@ sudo apt-get install libusb-1.0-0-dev libudev-dev
 ### Ubuntu 20.04 Specific Issues
 
 #### Ubuntu 20.04 Compatibility
-✅ **Good news!** The Linux builds are now compiled on Ubuntu 20.04, making them compatible with Ubuntu 20.04 and newer versions.
 
-Both the .deb package and AppImage should work directly on Ubuntu 20.04 without GLIBC compatibility issues.
+**Pre-built Releases**: 
+- GitHub releases are built on Ubuntu 22.04 and work best on Ubuntu 22.04+
+- May have GLIBC compatibility issues on Ubuntu 20.04
 
-**Installation**:
-```bash
-# For .deb package (recommended)
-sudo dpkg -i electron-kvm-client_1.0.0_amd64.deb
+**Solutions for Ubuntu 20.04**:
 
-# Or use AppImage
-chmod +x KVM-Client-1.0.0.AppImage
-./KVM-Client-1.0.0.AppImage
-```
+1. **Build locally** (recommended):
+   ```bash
+   git clone https://github.com/MotorBottle/USB-KVM-Electron.git
+   cd USB-KVM-Electron/electron-kvm
+   sudo apt-get install libusb-1.0-0-dev libudev-dev build-essential python3-dev
+   npm install
+   npm run build:rebuild
+   ```
+
+2. **Try pre-built first** (may work):
+   ```bash
+   # For .deb package
+   sudo dpkg -i electron-kvm-client_1.0.0_amd64.deb
+   
+   # Or AppImage
+   chmod +x KVM-Client-1.0.0.AppImage
+   ./KVM-Client-1.0.0.AppImage
+   ```
+
+See `BUILD.md` for detailed build instructions.
 
 #### HID Modules (if needed)
 On Ubuntu 20.04, you may need to manually load HID modules:

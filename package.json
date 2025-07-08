@@ -13,7 +13,9 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "build": "electron-builder",
-    "dist": "electron-builder --publish=never"
+    "build:rebuild": "electron-builder --config.buildDependenciesFromSource=true",
+    "dist": "electron-builder --publish=never",
+    "dist:rebuild": "electron-builder --publish=never --config.buildDependenciesFromSource=true"
   },
   "devDependencies": {
     "electron": "^28.0.0",
@@ -31,7 +33,6 @@
     "directories": {
       "output": "dist"
     },
-    "buildDependenciesFromSource": true,
     "files": [
       "src/**/*",
       "node_modules/**/*",
