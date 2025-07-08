@@ -13,14 +13,11 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "build": "electron-builder",
-    "dist": "electron-builder --publish=never",
-    "rebuild": "electron-rebuild",
-    "postinstall": "electron-builder install-app-deps"
+    "dist": "electron-builder --publish=never"
   },
   "devDependencies": {
     "electron": "^28.0.0",
-    "electron-builder": "^24.9.1",
-    "electron-rebuild": "^3.2.9"
+    "electron-builder": "^24.9.1"
   },
   "dependencies": {
     "node-hid": "^3.0.0",
@@ -34,8 +31,8 @@
     "directories": {
       "output": "dist"
     },
-    "beforeBuild": "npm run rebuild",
     "buildDependenciesFromSource": true,
+    "nodeGypRebuild": true,
     "files": [
       "src/**/*",
       "node_modules/**/*",
