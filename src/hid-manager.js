@@ -359,6 +359,18 @@ class HIDManager {
       'Backspace': 0x2A, 'Delete': 0x4C, 'Insert': 0x49,
       'Home': 0x4A, 'End': 0x4D, 'PageUp': 0x4B, 'PageDown': 0x4E,
       'ArrowUp': 0x52, 'ArrowDown': 0x51, 'ArrowLeft': 0x50, 'ArrowRight': 0x4F,
+      // Symbol keys - using physical key codes for reliable mapping
+      'BracketLeft': 0x2F,    // [ and {
+      'BracketRight': 0x30,   // ] and }
+      'Backslash': 0x31,      // \ and |
+      'Semicolon': 0x33,      // ; and :
+      'Quote': 0x34,          // ' and "
+      'Comma': 0x36,          // , and <
+      'Period': 0x37,         // . and >
+      'Slash': 0x38,          // / and ?
+      'Minus': 0x2D,          // - and _
+      'Equal': 0x2E,          // = and +
+      'Backquote': 0x35,      // ` and ~
       // Function keys - ensuring proper mapping for macOS system keys
       'F1': 0x3A, 'F2': 0x3B, 'F3': 0x3C, 'F4': 0x3D,
       'F5': 0x3E, 'F6': 0x3F, 'F7': 0x40, 'F8': 0x41,
