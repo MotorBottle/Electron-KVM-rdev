@@ -32,7 +32,6 @@
       "output": "dist"
     },
     "buildDependenciesFromSource": true,
-    "nodeGypRebuild": true,
     "files": [
       "src/**/*",
       "node_modules/**/*",
