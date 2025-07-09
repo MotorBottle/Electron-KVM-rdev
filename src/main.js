@@ -3,6 +3,19 @@ const path = require('path');
 const HIDManager = require('./hid-manager');
 const VideoServer = require('./video-server');
 
+// Disable network services and SSL connections at startup
+app.commandLine.appendSwitch('--disable-features', 'CertificateTransparencyComponentUpdater');
+app.commandLine.appendSwitch('--disable-background-networking');
+app.commandLine.appendSwitch('--disable-background-timer-throttling');
+app.commandLine.appendSwitch('--disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('--disable-component-update');
+app.commandLine.appendSwitch('--disable-default-apps');
+app.commandLine.appendSwitch('--disable-ipc-flooding-protection');
+app.commandLine.appendSwitch('--disable-web-security');
+app.commandLine.appendSwitch('--disable-features', 'VizDisplayCompositor');
+app.commandLine.appendSwitch('--disable-features', 'DnsOverHttps');
+app.commandLine.appendSwitch('--disable-domain-reliability');
+
 let mainWindow;
 let hidManager;
 let videoServer;
@@ -14,7 +27,12 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      // Disable network access for security and to prevent SSL errors
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      // Disable additional web features that might make network requests
+      experimentalFeatures: false
     },
     titleBarStyle: process.platform === 'darwin' ? 'default' : 'default',
     title: 'KVM Remote Control',
@@ -159,6 +177,9 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Set app user model ID for Windows
+  app.setAppUserModelId('com.motorbottle.kvm-client');
+  
   createWindow();
   
   // Initialize HID manager

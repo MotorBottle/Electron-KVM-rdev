@@ -13,6 +13,9 @@ class KVMClient {
         this.isFullscreen = false; // Track fullscreen state
         this.quitKeyCombo = { ctrlKey: true, altKey: true, shiftKey: false, metaKey: false, key: null, code: null }; // Default quit combination
         
+        // Disable WebRTC's default STUN servers to prevent external network connections
+        this.disableWebRTCExternalConnections();
+        
         // Load saved settings
         this.loadSettings();
         
@@ -26,6 +29,30 @@ class KVMClient {
         this.setupGlobalKeyHandler();
         this.initializeVideo();
         this.applyLoadedSettings();
+    }
+
+    disableWebRTCExternalConnections() {
+        // Override RTCPeerConnection to disable STUN servers and external connections
+        if (typeof RTCPeerConnection !== 'undefined') {
+            const originalRTCPeerConnection = RTCPeerConnection;
+            
+            window.RTCPeerConnection = function(config) {
+                // Remove any external STUN/TURN servers
+                if (config && config.iceServers) {
+                    config.iceServers = [];
+                }
+                return new originalRTCPeerConnection(config);
+            };
+            
+            // Copy static methods
+            Object.setPrototypeOf(window.RTCPeerConnection, originalRTCPeerConnection);
+            window.RTCPeerConnection.prototype = originalRTCPeerConnection.prototype;
+        }
+        
+        // Override getUserMedia to ensure no external network calls
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            console.log('WebRTC external connections disabled for local KVM use');
+        }
     }
 
     initializeElements() {
@@ -815,29 +842,33 @@ class KVMClient {
             const [width, height] = resolution.split('x').map(Number);
             const frameRate = Number(fps);
 
+            // Configure getUserMedia to avoid external network connections
+            const constraints = {
+                video: {
+                    deviceId: { exact: deviceId },
+                    width: { exact: width },
+                    height: { exact: height },
+                    frameRate: { ideal: frameRate }
+                },
+                audio: false
+            };
+
             // Try with ideal FPS first
             let stream;
             try {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        deviceId: { exact: deviceId },
-                        width: { exact: width },
-                        height: { exact: height },
-                        frameRate: { ideal: frameRate }
-                    },
-                    audio: false
-                });
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
             } catch (error) {
                 console.warn('Ideal FPS failed, trying without FPS constraint:', error);
                 // Fallback without FPS constraint
-                stream = await navigator.mediaDevices.getUserMedia({
+                const fallbackConstraints = {
                     video: {
                         deviceId: { exact: deviceId },
                         width: { exact: width },
                         height: { exact: height }
                     },
                     audio: false
-                });
+                };
+                stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
             }
 
             this.videoElement.srcObject = stream;
