@@ -914,3 +914,129 @@ input:checked + .toggle-slider:before {
         width: 32px;
     }
 }
+
+/* Quit Key Controls */
+.quit-key-controls {
+    margin-bottom: 20px;
+}
+
+.quit-key-setting {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.quit-key-display {
+    font-family: 'Courier New', monospace;
+    background-color: #2d2d2d;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid #404040;
+    color: #ffffff;
+    font-size: 14px;
+    min-width: 100px;
+    text-align: center;
+}
+
+/* Quit Key Modal */
+.quit-key-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.quit-key-content {
+    background-color: #2d2d2d;
+    padding: 24px;
+    border-radius: 8px;
+    border: 1px solid #404040;
+    max-width: 500px;
+    width: 90%;
+    color: #ffffff;
+}
+
+.quit-key-content h3 {
+    margin: 0 0 16px 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.quit-key-content p {
+    margin: 0 0 16px 0;
+    color: #cccccc;
+}
+
+.key-capture-area {
+    background-color: #1a1a1a;
+    border: 2px solid #404040;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    text-align: center;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s;
+}
+
+.key-capture-area.capturing {
+    border-color: #007acc;
+    background-color: #0d1117;
+}
+
+.captured-keys {
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-bottom: 16px;
+}
+
+.quit-key-help {
+    background-color: #1a1a1a;
+    padding: 16px;
+    border-radius: 6px;
+    border-left: 4px solid #007acc;
+}
+
+.quit-key-help p {
+    margin: 0 0 8px 0;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.quit-key-help ul {
+    margin: 0;
+    padding-left: 20px;
+    color: #cccccc;
+}
+
+.quit-key-help li {
+    margin-bottom: 4px;
+}
+
+@media (max-width: 768px) {
+    .quit-key-content {
+        padding: 16px;
+        max-width: 95%;
+    }
+    
+    .modal-buttons {
+        flex-direction: column;
+    }
+}

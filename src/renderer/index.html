@@ -94,6 +94,15 @@
                     <p class="mode-description" id="scrollDirectionDescription">Natural scrolling (like macOS/mobile)</p>
                 </div>
                 
+                <div class="quit-key-controls">
+                    <h3>Quit Key Combination</h3>
+                    <div class="quit-key-setting">
+                        <span class="quit-key-display" id="quitKeyDisplay">Ctrl + Alt</span>
+                        <button id="changeQuitKey" class="btn btn-secondary">Change</button>
+                    </div>
+                    <p class="mode-description">Key combination to exit control mode</p>
+                </div>
+                
                 <div class="test-controls">
                     <h3>Test Controls</h3>
                     <div class="test-buttons">
@@ -113,6 +122,33 @@
                 <div style="font-weight: 600; margin-bottom: 6px;">🎮 Control Mode Active</div>
                 <div style="margin-bottom: 4px;">Press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> to exit</div>
                 <div style="font-size: 11px; opacity: 0.7;">F3/F11 keys via test buttons</div>
+            </div>
+        </div>
+
+        <!-- Quit Key Change Modal -->
+        <div class="quit-key-modal" id="quitKeyModal" style="display: none;">
+            <div class="quit-key-content">
+                <h3>Change Quit Key Combination</h3>
+                <p>Press the key combination you want to use to exit control mode:</p>
+                
+                <div class="key-capture-area" id="keyCaptureArea">
+                    <div class="captured-keys" id="capturedKeys">Press keys...</div>
+                </div>
+                
+                <div class="modal-buttons">
+                    <button id="confirmQuitKey" class="btn btn-primary" disabled>Confirm</button>
+                    <button id="cancelQuitKey" class="btn btn-secondary">Cancel</button>
+                    <button id="resetQuitKey" class="btn btn-warning">Reset to Default</button>
+                </div>
+                
+                <div class="quit-key-help">
+                    <p><strong>Tips:</strong></p>
+                    <ul>
+                        <li>Use modifier keys (Ctrl, Alt, Shift, Meta) for reliability</li>
+                        <li>Avoid single keys that might be used normally</li>
+                        <li>Common combinations: Ctrl+Alt, Ctrl+Shift, Alt+Shift</li>
+                    </ul>
+                </div>
             </div>
         </div>
 

@@ -11,6 +11,7 @@ class KVMClient {
         this.mouseButtonsPressed = 0; // Track which buttons are pressed
         this.reverseScroll = false; // Natural scrolling direction
         this.isFullscreen = false; // Track fullscreen state
+        this.quitKeyCombo = { ctrlKey: true, altKey: true, shiftKey: false, metaKey: false, key: null, code: null }; // Default quit combination
         
         // Load saved settings
         this.loadSettings();
@@ -87,6 +88,16 @@ class KVMClient {
         this.infoPanel = document.querySelector('.info-panel');
         this.sidebarToggleBtn = document.getElementById('sidebarToggle');
         this.closeSidebarBtn = document.getElementById('closeSidebar');
+        
+        // Quit key elements
+        this.quitKeyDisplay = document.getElementById('quitKeyDisplay');
+        this.changeQuitKeyBtn = document.getElementById('changeQuitKey');
+        this.quitKeyModal = document.getElementById('quitKeyModal');
+        this.keyCaptureArea = document.getElementById('keyCaptureArea');
+        this.capturedKeys = document.getElementById('capturedKeys');
+        this.confirmQuitKeyBtn = document.getElementById('confirmQuitKey');
+        this.cancelQuitKeyBtn = document.getElementById('cancelQuitKey');
+        this.resetQuitKeyBtn = document.getElementById('resetQuitKey');
     }
 
     loadSettings() {
@@ -116,10 +127,27 @@ class KVMClient {
                 fps: savedFPS
             };
             
+            // Load quit key combination preference
+            const savedQuitKeyCombo = localStorage.getItem('kvmQuitKeyCombo');
+            if (savedQuitKeyCombo) {
+                try {
+                    const parsed = JSON.parse(savedQuitKeyCombo);
+                    this.quitKeyCombo = parsed;
+                    
+                    // Migration: Add code field if it doesn't exist
+                    if (this.quitKeyCombo.code === undefined) {
+                        this.quitKeyCombo.code = null;
+                    }
+                } catch (error) {
+                    console.error('Error parsing quit key combo:', error);
+                }
+            }
+            
             console.log('Loaded settings:', { 
                 mouseMode: this.mouseMode, 
                 reverseScroll: this.reverseScroll,
-                videoPreferences: this.savedVideoPreferences
+                videoPreferences: this.savedVideoPreferences,
+                quitKeyCombo: this.quitKeyCombo
             });
         } catch (error) {
             console.error('Error loading settings:', error);
@@ -130,7 +158,8 @@ class KVMClient {
         try {
             localStorage.setItem('kvmMouseMode', this.mouseMode);
             localStorage.setItem('kvmScrollReverse', this.reverseScroll.toString());
-            console.log('Saved settings:', { mouseMode: this.mouseMode, reverseScroll: this.reverseScroll });
+            localStorage.setItem('kvmQuitKeyCombo', JSON.stringify(this.quitKeyCombo));
+            console.log('Saved settings:', { mouseMode: this.mouseMode, reverseScroll: this.reverseScroll, quitKeyCombo: this.quitKeyCombo });
         } catch (error) {
             console.error('Error saving settings:', error);
         }
@@ -169,6 +198,9 @@ class KVMClient {
         this.scrollReverseToggle.checked = this.reverseScroll;
         this.updateScrollDirectionDisplay();
         
+        // Apply quit key combination setting to UI
+        this.updateQuitKeyDisplay();
+        
         console.log('Applied loaded settings to UI');
     }
 
@@ -202,6 +234,9 @@ class KVMClient {
         // Scroll direction toggle
         this.scrollReverseToggle.addEventListener('change', () => this.toggleScrollDirection());
         
+        // Quit key controls
+        this.changeQuitKeyBtn.addEventListener('click', () => this.showQuitKeyModal());
+        
         // Test controls
         this.testMouseBtn.addEventListener('click', () => this.testMouse());
         this.testKeyboardBtn.addEventListener('click', () => this.testKeyboard());
@@ -217,6 +252,11 @@ class KVMClient {
         this.closeVirtualKeyboardBtn.addEventListener('click', () => this.hideVirtualKeyboard());
         this.sendCombinationBtn.addEventListener('click', () => this.sendCurrentCombination());
         this.clearCombinationBtn.addEventListener('click', () => this.clearCombination());
+        
+        // Quit key modal event listeners
+        this.confirmQuitKeyBtn.addEventListener('click', () => this.confirmQuitKeyChange());
+        this.cancelQuitKeyBtn.addEventListener('click', () => this.hideQuitKeyModal());
+        this.resetQuitKeyBtn.addEventListener('click', () => this.resetQuitKeyToDefault());
         
         // Video stream mouse/keyboard capture
         this.videoElement.addEventListener('click', (e) => {
@@ -235,8 +275,8 @@ class KVMClient {
                 console.log(`Document keydown: ${e.key}, captured: ${this.mouseCaptured}, hidConnected: ${this.hidConnected}`);
             }
             
-            // New quit shortcut: Ctrl+Alt (instead of just Escape)
-            if (e.ctrlKey && e.altKey && this.mouseCaptured) {
+            // Check for quit key combination
+            if (this.isQuitKeyCombo(e) && this.mouseCaptured) {
                 this.releaseMouseCaptureWithKeyReset();
                 e.preventDefault();
                 return;
@@ -1843,6 +1883,47 @@ class KVMClient {
         return codeToKey[code] || code;
     }
 
+    getDisplayKeyFromCode(code, fallbackKey) {
+        // Convert event.code to a readable display key name
+        // This helps avoid showing modified characters like 'œ' for Alt+Q
+        const codeToDisplayKey = {
+            // Letter keys
+            'KeyA': 'A', 'KeyB': 'B', 'KeyC': 'C', 'KeyD': 'D', 'KeyE': 'E', 'KeyF': 'F',
+            'KeyG': 'G', 'KeyH': 'H', 'KeyI': 'I', 'KeyJ': 'J', 'KeyK': 'K', 'KeyL': 'L',
+            'KeyM': 'M', 'KeyN': 'N', 'KeyO': 'O', 'KeyP': 'P', 'KeyQ': 'Q', 'KeyR': 'R',
+            'KeyS': 'S', 'KeyT': 'T', 'KeyU': 'U', 'KeyV': 'V', 'KeyW': 'W', 'KeyX': 'X',
+            'KeyY': 'Y', 'KeyZ': 'Z',
+            
+            // Number keys
+            'Digit0': '0', 'Digit1': '1', 'Digit2': '2', 'Digit3': '3', 'Digit4': '4',
+            'Digit5': '5', 'Digit6': '6', 'Digit7': '7', 'Digit8': '8', 'Digit9': '9',
+            
+            // Function keys
+            'F1': 'F1', 'F2': 'F2', 'F3': 'F3', 'F4': 'F4', 'F5': 'F5', 'F6': 'F6',
+            'F7': 'F7', 'F8': 'F8', 'F9': 'F9', 'F10': 'F10', 'F11': 'F11', 'F12': 'F12',
+            
+            // Special keys
+            'Space': 'Space',
+            'Enter': 'Enter',
+            'Tab': 'Tab',
+            'Escape': 'Escape',
+            'Backspace': 'Backspace',
+            'Delete': 'Delete',
+            'Insert': 'Insert',
+            'Home': 'Home',
+            'End': 'End',
+            'PageUp': 'PageUp',
+            'PageDown': 'PageDown',
+            'ArrowLeft': 'ArrowLeft',
+            'ArrowRight': 'ArrowRight',
+            'ArrowUp': 'ArrowUp',
+            'ArrowDown': 'ArrowDown'
+        };
+        
+        // Return the mapped display key or fallback to the original key
+        return codeToDisplayKey[code] || fallbackKey;
+    }
+
     resetVirtualKeyboardModifiers() {
         this.activeModifiers.clear();
         this.pendingKeys = [];
@@ -1921,40 +2002,70 @@ class KVMClient {
         // Create notification element if it doesn't exist
         let notification = document.getElementById('controlModeNotification');
         if (!notification) {
+            // Add animation styles to document head if not already present
+            if (!document.getElementById('controlModeNotificationStyles')) {
+                const style = document.createElement('style');
+                style.id = 'controlModeNotificationStyles';
+                style.textContent = `
+                    @keyframes slideUpFadeIn {
+                        0% {
+                            transform: translateX(-50%) translateY(20px);
+                            opacity: 0;
+                        }
+                        100% {
+                            transform: translateX(-50%) translateY(0);
+                            opacity: 1;
+                        }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
             notification = document.createElement('div');
             notification.id = 'controlModeNotification';
             notification.style.cssText = `
                 position: fixed;
-                bottom: 20px;
-                left: 20px;
-                background-color: rgba(0, 0, 0, 0.9);
+                bottom: 40px;
+                left: 50%;
+                transform: translateX(-50%);
+                background-color: rgba(0, 0, 0, 0.95);
                 color: white;
-                padding: 12px 16px;
-                border-radius: 8px;
-                font-size: 13px;
-                font-weight: 500;
+                padding: 20px 30px;
+                border-radius: 12px;
+                font-size: 18px;
+                font-weight: 600;
                 z-index: 10002;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                backdrop-filter: blur(8px);
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+                border: 2px solid rgba(255, 255, 255, 0.2);
+                backdrop-filter: blur(12px);
                 transition: all 0.3s ease;
-                max-width: 280px;
+                max-width: 400px;
                 word-wrap: break-word;
+                text-align: center;
+                animation: slideUpFadeIn 0.4s ease-out;
             `;
             document.body.appendChild(notification);
         }
 
+        // Get current quit key combination
+        const parts = [];
+        if (this.quitKeyCombo.ctrlKey) parts.push('Ctrl');
+        if (this.quitKeyCombo.altKey) parts.push('Alt');
+        if (this.quitKeyCombo.shiftKey) parts.push('Shift');
+        if (this.quitKeyCombo.metaKey) parts.push('Meta');
+        if (this.quitKeyCombo.key) parts.push(this.quitKeyCombo.key.toUpperCase());
+        
         // Set the content with HTML for styled keys
         notification.innerHTML = `
-            <div style="font-weight: 600; margin-bottom: 6px;">🎮 Control Mode Active</div>
-            <div style="margin-bottom: 4px;">Press <kbd style="background-color: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 3px; padding: 2px 6px; font-size: 11px; font-family: inherit; font-weight: 500;">Ctrl</kbd> + <kbd style="background-color: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 3px; padding: 2px 6px; font-size: 11px; font-family: inherit; font-weight: 500;">Alt</kbd> to exit</div>
-            <div style="font-size: 11px; opacity: 0.7;">F3/F11 keys via test buttons</div>
+            <div style="font-weight: 700; margin-bottom: 12px; font-size: 20px;">🎮 Control Mode Active</div>
+            <div style="margin-bottom: 8px; font-size: 16px;">Press ${parts.map(key => `<kbd style="background-color: rgba(255, 255, 255, 0.25); border: 2px solid rgba(255, 255, 255, 0.4); border-radius: 6px; padding: 4px 10px; font-size: 14px; font-family: inherit; font-weight: 600; margin: 0 2px;">${key}</kbd>`).join(' + ')} to exit</div>
+            <div style="font-size: 13px; opacity: 0.8;">F3/F11 keys via test buttons</div>
         `;
 
         notification.style.display = 'block';
         notification.style.opacity = '1';
 
-        // Auto-hide after 2 seconds
+        // Auto-hide after 4 seconds
         setTimeout(() => {
             if (notification && this.mouseCaptured) {
                 notification.style.opacity = '0';
@@ -1964,7 +2075,7 @@ class KVMClient {
                     }
                 }, 300);
             }
-        }, 2000);
+        }, 4000);
     }
 
     async toggleFullscreen() {
@@ -1990,6 +2101,145 @@ class KVMClient {
         } catch (error) {
             console.error('Error toggling fullscreen:', error);
         }
+    }
+
+    // Quit Key Functions
+    isQuitKeyCombo(event) {
+        const modifiersMatch = event.ctrlKey === this.quitKeyCombo.ctrlKey &&
+                              event.altKey === this.quitKeyCombo.altKey &&
+                              event.shiftKey === this.quitKeyCombo.shiftKey &&
+                              event.metaKey === this.quitKeyCombo.metaKey;
+        
+        // If there's a specific key required, check it using the stored code for accuracy
+        if (this.quitKeyCombo.key) {
+            // Use event.code for comparison if available, otherwise fall back to event.key
+            if (this.quitKeyCombo.code) {
+                return modifiersMatch && event.code === this.quitKeyCombo.code;
+            } else {
+                // Legacy support for old saved settings without code
+                return modifiersMatch && event.key === this.quitKeyCombo.key;
+            }
+        }
+        
+        // For modifier-only combinations, ensure no other keys are pressed
+        return modifiersMatch && !event.key.match(/^[a-zA-Z0-9]$/);
+    }
+
+    updateQuitKeyDisplay() {
+        const parts = [];
+        if (this.quitKeyCombo.ctrlKey) parts.push('Ctrl');
+        if (this.quitKeyCombo.altKey) parts.push('Alt');
+        if (this.quitKeyCombo.shiftKey) parts.push('Shift');
+        if (this.quitKeyCombo.metaKey) parts.push('Meta');
+        if (this.quitKeyCombo.key) parts.push(this.quitKeyCombo.key.toUpperCase());
+        
+        this.quitKeyDisplay.textContent = parts.join(' + ') || 'None';
+        
+        // Update the control mode notification
+        this.updateControlModeNotification();
+    }
+
+    updateControlModeNotification() {
+        // Update the overlay message with current quit key combination
+        const parts = [];
+        if (this.quitKeyCombo.ctrlKey) parts.push('Ctrl');
+        if (this.quitKeyCombo.altKey) parts.push('Alt');
+        if (this.quitKeyCombo.shiftKey) parts.push('Shift');
+        if (this.quitKeyCombo.metaKey) parts.push('Meta');
+        if (this.quitKeyCombo.key) parts.push(this.quitKeyCombo.key.toUpperCase());
+        
+        const quitKeyText = parts.join(' + ') || 'None';
+        
+        // Update the overlay in the mouse capture overlay
+        const overlayInfo = this.mouseCaptureOverlay.querySelector('.mouse-capture-info');
+        if (overlayInfo) {
+            overlayInfo.innerHTML = `
+                <div style="font-weight: 600; margin-bottom: 6px;">🎮 Control Mode Active</div>
+                <div style="margin-bottom: 4px;">Press ${parts.map(key => `<kbd>${key}</kbd>`).join(' + ')} to exit</div>
+                <div style="font-size: 11px; opacity: 0.7;">F3/F11 keys via test buttons</div>
+            `;
+        }
+    }
+
+    showQuitKeyModal() {
+        this.quitKeyModal.style.display = 'flex';
+        this.tempQuitKeyCombo = null;
+        this.capturedKeys.textContent = 'Press keys...';
+        this.confirmQuitKeyBtn.disabled = true;
+        this.keyCaptureArea.classList.add('capturing');
+        
+        // Add key capture listener
+        this.quitKeyModalKeyHandler = (e) => this.handleQuitKeyCapture(e);
+        document.addEventListener('keydown', this.quitKeyModalKeyHandler);
+        document.addEventListener('keyup', this.quitKeyModalKeyHandler);
+    }
+
+    hideQuitKeyModal() {
+        this.quitKeyModal.style.display = 'none';
+        this.keyCaptureArea.classList.remove('capturing');
+        
+        // Remove key capture listener
+        if (this.quitKeyModalKeyHandler) {
+            document.removeEventListener('keydown', this.quitKeyModalKeyHandler);
+            document.removeEventListener('keyup', this.quitKeyModalKeyHandler);
+            this.quitKeyModalKeyHandler = null;
+        }
+    }
+
+    handleQuitKeyCapture(event) {
+        if (event.type === 'keydown') {
+            event.preventDefault();
+            
+            // Check if it's a modifier-only key press
+            const isModifierOnly = ['Control', 'Alt', 'Shift', 'Meta'].includes(event.key);
+            
+            // Use event.code to get the physical key instead of event.key for better display
+            // event.code represents the physical key (e.g., 'KeyQ') while event.key represents the character ('œ' when Alt+Q)
+            let displayKey = null;
+            if (!isModifierOnly) {
+                // Convert event.code to a readable key name
+                displayKey = this.getDisplayKeyFromCode(event.code, event.key);
+            }
+            
+            // Capture the key combination
+            this.tempQuitKeyCombo = {
+                ctrlKey: event.ctrlKey,
+                altKey: event.altKey,
+                shiftKey: event.shiftKey,
+                metaKey: event.metaKey,
+                key: displayKey,
+                code: event.code // Store the code for accurate key detection
+            };
+            
+            // Display the captured combination
+            const parts = [];
+            if (event.ctrlKey) parts.push('Ctrl');
+            if (event.altKey) parts.push('Alt');
+            if (event.shiftKey) parts.push('Shift');
+            if (event.metaKey) parts.push('Meta');
+            if (displayKey) parts.push(displayKey.toUpperCase());
+            
+            this.capturedKeys.textContent = parts.join(' + ') || 'None';
+            
+            // Enable confirm button if we have at least one modifier or a regular key
+            this.confirmQuitKeyBtn.disabled = parts.length === 0;
+        }
+    }
+
+    confirmQuitKeyChange() {
+        if (this.tempQuitKeyCombo) {
+            this.quitKeyCombo = this.tempQuitKeyCombo;
+            this.updateQuitKeyDisplay();
+            this.saveSettings();
+            this.hideQuitKeyModal();
+        }
+    }
+
+    resetQuitKeyToDefault() {
+        this.quitKeyCombo = { ctrlKey: true, altKey: true, shiftKey: false, metaKey: false, key: null, code: null };
+        this.updateQuitKeyDisplay();
+        this.saveSettings();
+        this.hideQuitKeyModal();
     }
 }
 
