@@ -240,21 +240,26 @@ class HIDManager {
         this.activeKeys.clear();
         console.log('Keyboard state reset - all keys released');
       } else if (data.type === 'keydown') {
-        // Check if this is a modifier key press
+        // Build modifier state from event flags (more reliable than key detection)
+        this.modifierState = 0;
+        if (data.ctrlKey) this.modifierState |= 1;   // Left Control
+        if (data.shiftKey) this.modifierState |= 2;  // Left Shift
+        if (data.altKey) this.modifierState |= 4;    // Left Alt
+        if (data.metaKey) this.modifierState |= 8;   // Left Meta/Cmd
+        
+        // Check if this is a modifier key press (for individual modifier key tracking)
         const modifierCode = this.getModifierCode(data.key, data.code);
         const isModifierKey = modifierCode > 0;
         
-        if (isModifierKey) {
-          // Update modifier state
-          this.modifierState |= modifierCode;
-          console.log('Modifier key pressed:', data.key, data.code, 'state:', this.modifierState.toString(16));
-        } else {
-          // Regular key press
+        if (!isModifierKey) {
+          // Regular key press - use physical key code
           const keyCode = this.getKeyCode(data.key, data.code);
           if (keyCode > 0) {
             this.activeKeys.add(keyCode);
-            console.log('Key pressed:', data.key, data.code, 'keyCode:', keyCode.toString(16));
+            console.log('Key pressed:', data.key, data.code, 'keyCode:', keyCode.toString(16), 'modifiers:', this.modifierState.toString(16));
           }
+        } else {
+          console.log('Modifier key pressed:', data.key, data.code, 'state:', this.modifierState.toString(16));
         }
         
         // Build buffer with current state
@@ -267,21 +272,26 @@ class HIDManager {
         }
         
       } else if (data.type === 'keyup') {
-        // Check if this is a modifier key release
+        // Build modifier state from event flags (more reliable than key detection)
+        this.modifierState = 0;
+        if (data.ctrlKey) this.modifierState |= 1;   // Left Control
+        if (data.shiftKey) this.modifierState |= 2;  // Left Shift
+        if (data.altKey) this.modifierState |= 4;    // Left Alt
+        if (data.metaKey) this.modifierState |= 8;   // Left Meta/Cmd
+        
+        // Check if this is a modifier key release (for individual modifier key tracking)
         const modifierCode = this.getModifierCode(data.key, data.code);
         const isModifierKey = modifierCode > 0;
         
-        if (isModifierKey) {
-          // Update modifier state
-          this.modifierState &= ~modifierCode;
-          console.log('Modifier key released:', data.key, data.code, 'state:', this.modifierState.toString(16));
-        } else {
-          // Regular key release
+        if (!isModifierKey) {
+          // Regular key release - use physical key code
           const keyCode = this.getKeyCode(data.key, data.code);
           if (keyCode > 0) {
             this.activeKeys.delete(keyCode);
-            console.log('Key released:', data.key, data.code, 'keyCode:', keyCode.toString(16));
+            console.log('Key released:', data.key, data.code, 'keyCode:', keyCode.toString(16), 'modifiers:', this.modifierState.toString(16));
           }
+        } else {
+          console.log('Modifier key released:', data.key, data.code, 'state:', this.modifierState.toString(16));
         }
         
         // Build buffer with current state

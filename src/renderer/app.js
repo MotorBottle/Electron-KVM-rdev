@@ -1091,7 +1091,7 @@ class KVMClient {
         }
     }
 
-    toggleMouseCapture() {
+    async toggleMouseCapture() {
         if (!this.hidConnected) {
             alert('Please connect HID device first for mouse/keyboard control');
             return;
@@ -1103,9 +1103,9 @@ class KVMClient {
         }
 
         if (this.mouseCaptured) {
-            this.releaseMouseCapture();
+            await this.releaseMouseCapture();
         } else {
-            this.captureMouseKeyboard();
+            await this.captureMouseKeyboard();
         }
     }
 
@@ -1124,13 +1124,20 @@ class KVMClient {
         }
         
         // Then release mouse capture normally
-        this.releaseMouseCapture();
+        await this.releaseMouseCapture();
     }
 
-    releaseMouseCapture() {
+    async releaseMouseCapture() {
         this.mouseCaptured = false;
         this.mouseCaptureOverlay.style.display = 'none';
         document.body.style.cursor = 'default';
+        
+        // Unregister ESC key when exiting control mode
+        try {
+            await window.electronAPI.setControlMode(false);
+        } catch (error) {
+            console.error('Error unsetting control mode:', error);
+        }
         
         // Hide control mode notification
         const controlNotification = document.getElementById('controlModeNotification');
@@ -1446,8 +1453,15 @@ class KVMClient {
         }
     }
 
-    captureMouseKeyboard() {
+    async captureMouseKeyboard() {
         this.mouseCaptured = true;
+        
+        // Register ESC key for control mode
+        try {
+            await window.electronAPI.setControlMode(true);
+        } catch (error) {
+            console.error('Error setting control mode:', error);
+        }
         
         // Multiple approaches for macOS compatibility
         const videoContainer = document.querySelector('.video-container');

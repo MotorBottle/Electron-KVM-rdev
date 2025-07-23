@@ -18,5 +18,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onGlobalKeyPressed: (callback) => ipcRenderer.on('global-key-pressed', callback),
   
   // Window controls
-  toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen')
+  toggleFullscreen: () => ipcRenderer.invoke('toggle-fullscreen'),
+  setControlMode: (inControlMode) => ipcRenderer.invoke('set-control-mode', inControlMode)
 });

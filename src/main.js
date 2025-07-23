@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, globalShortcut } = require('electron');
 const path = require('path');
 const HIDManager = require('./hid-manager');
 const VideoServer = require('./video-server');
@@ -43,11 +43,10 @@ function createWindow() {
   });
 
   // Register global shortcuts to prevent macOS from intercepting them
-  const { globalShortcut } = require('electron');
   
-  // Register F3, F11, and ESC to prevent system capture and forward to renderer
-  // Try multiple registration approaches for F3 and F11
-  const keysToRegister = ['F3', 'F11', 'Escape'];
+  // Register F3 and F11 to prevent system capture and forward to renderer
+  // ESC will be registered dynamically when in control mode
+  const keysToRegister = ['F3', 'F11'];
   
   keysToRegister.forEach(key => {
     try {
@@ -120,11 +119,14 @@ function createWindow() {
     mainWindow = null;
   });
 
-  // Try to re-register shortcuts when window gets focus
+  // Track control mode state for focus/blur handling
+  let isInControlMode = false;
+
+  // Handle focus/blur for ESC key management
   mainWindow.on('focus', () => {
-    console.log('Window focused, attempting to re-register F3/F11');
+    console.log('Window focused, re-registering shortcuts');
     try {
-      // Unregister and re-register to ensure they're active
+      // Unregister and re-register F3/F11 to ensure they're active
       globalShortcut.unregister('F3');
       globalShortcut.unregister('F11');
       
@@ -141,8 +143,28 @@ function createWindow() {
           mainWindow.webContents.send('global-key-pressed', { key: 'F11', code: 'F11' });
         }
       });
+
+      // Re-register ESC key if we're in control mode
+      if (isInControlMode && !globalShortcut.isRegistered('Escape')) {
+        globalShortcut.register('Escape', () => {
+          console.log('ESC key captured during control mode');
+          if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.send('global-key-pressed', { key: 'Escape', code: 'Escape' });
+          }
+        });
+        console.log('ESC key re-registered on focus');
+      }
     } catch (error) {
       console.log('Focus re-registration failed:', error.message);
+    }
+  });
+
+  mainWindow.on('blur', () => {
+    console.log('Window lost focus, unregistering ESC key');
+    // Always unregister ESC key when losing focus to prevent system interference
+    if (globalShortcut.isRegistered('Escape')) {
+      globalShortcut.unregister('Escape');
+      console.log('ESC key unregistered on blur');
     }
   });
 
@@ -203,7 +225,6 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   // Unregister global shortcuts
-  const { globalShortcut } = require('electron');
   globalShortcut.unregisterAll();
   
   if (hidManager) {
@@ -264,4 +285,35 @@ ipcMain.handle('toggle-fullscreen', async () => {
     return !isFullscreen;
   }
   return false;
+});
+
+// Manage ESC key registration based on control mode
+ipcMain.handle('set-control-mode', async (_, inControlMode) => {
+  // Update the control mode state for focus/blur handling
+  isInControlMode = inControlMode;
+  
+  try {
+    if (inControlMode) {
+      // Register ESC key when entering control mode (only if window has focus)
+      if (mainWindow && mainWindow.isFocused() && !globalShortcut.isRegistered('Escape')) {
+        globalShortcut.register('Escape', () => {
+          console.log('ESC key captured during control mode');
+          if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.send('global-key-pressed', { key: 'Escape', code: 'Escape' });
+          }
+        });
+        console.log('ESC key registered for control mode');
+      }
+    } else {
+      // Unregister ESC key when exiting control mode
+      if (globalShortcut.isRegistered('Escape')) {
+        globalShortcut.unregister('Escape');
+        console.log('ESC key unregistered - released for system use');
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error('Error managing ESC key registration:', error);
+    return false;
+  }
 });
