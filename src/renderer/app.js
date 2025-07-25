@@ -13,6 +13,8 @@ class KVMClient {
         this.reverseScroll = false; // Natural scrolling direction
         this.isFullscreen = false; // Track fullscreen state
         this.quitKeyCombo = { ctrlKey: true, altKey: true, shiftKey: false, metaKey: false, key: null, code: null }; // Default quit combination
+        this.keyboardLockSupported = false; // Track Keyboard Lock API support
+        this.keyboardLockActive = false; // Track if keyboard lock is currently active
         
         // Disable WebRTC's default STUN servers to prevent external network connections
         this.disableWebRTCExternalConnections();
@@ -28,6 +30,7 @@ class KVMClient {
         this.initializeElements();
         this.bindEvents();
         this.setupGlobalKeyHandler();
+        this.checkKeyboardLockSupport();
         this.initializeVideo();
         this.applyLoadedSettings();
     }
@@ -449,6 +452,55 @@ class KVMClient {
         
         // Virtual keyboard event listeners
         this.setupVirtualKeyboard();
+    }
+
+    checkKeyboardLockSupport() {
+        // Check if Keyboard Lock API is supported
+        if ('keyboard' in navigator && 'lock' in navigator.keyboard) {
+            this.keyboardLockSupported = true;
+            console.log('Keyboard Lock API supported - enhanced key capture available');
+        } else {
+            this.keyboardLockSupported = false;
+            console.log('Keyboard Lock API not supported - using standard key capture');
+        }
+    }
+
+    async activateKeyboardLock() {
+        if (!this.keyboardLockSupported) {
+            return false;
+        }
+
+        try {
+            // Lock common system keys and function keys
+            await navigator.keyboard.lock([
+                'Escape', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 
+                'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
+                'MetaLeft', 'MetaRight', 'AltLeft', 'AltRight',
+                'Tab', 'ControlLeft', 'ControlRight'
+            ]);
+            
+            this.keyboardLockActive = true;
+            console.log('Keyboard Lock API activated - system keys captured');
+            return true;
+        } catch (error) {
+            console.error('Failed to activate Keyboard Lock API:', error);
+            return false;
+        }
+    }
+
+    async deactivateKeyboardLock() {
+        if (!this.keyboardLockSupported || !this.keyboardLockActive) {
+            return;
+        }
+
+        try {
+            // Release all locked keys
+            await navigator.keyboard.unlock();
+            this.keyboardLockActive = false;
+            console.log('Keyboard Lock API deactivated - system keys released');
+        } catch (error) {
+            console.error('Failed to deactivate Keyboard Lock API:', error);
+        }
     }
 
     setupGlobalKeyHandler() {
@@ -1192,6 +1244,12 @@ class KVMClient {
         this.mouseCaptureOverlay.style.display = 'none';
         document.body.style.cursor = 'default';
         
+        // Deactivate Keyboard Lock API if active
+        if (this.keyboardLockActive) {
+            await this.deactivateKeyboardLock();
+            console.log('Enhanced key capture deactivated - system keys released');
+        }
+        
         // Unregister ESC key when exiting control mode
         try {
             await window.electronAPI.setControlMode(false);
@@ -1521,6 +1579,14 @@ class KVMClient {
 
     async captureMouseKeyboard() {
         this.mouseCaptured = true;
+        
+        // Activate Keyboard Lock API if supported
+        if (this.keyboardLockSupported) {
+            const lockActivated = await this.activateKeyboardLock();
+            if (lockActivated) {
+                console.log('Enhanced key capture active - system keys will be captured');
+            }
+        }
         
         // Register ESC key for control mode
         try {
@@ -1980,6 +2046,12 @@ class KVMClient {
     }
 
     getKeyFromCode(code) {
+        // Handle the ShiftRight bug in Keyboard Lock API where event.code is empty
+        let actualCode = code;
+        if (code === '' && this.activeModifiers.has('ShiftRight')) {
+            actualCode = 'ShiftRight';
+        }
+        
         const codeToKey = {
             'ControlLeft': 'Control',
             'ControlRight': 'Control',
@@ -1991,7 +2063,7 @@ class KVMClient {
             'ShiftRight': 'Shift',
             'CapsLock': 'CapsLock'
         };
-        return codeToKey[code] || code;
+        return codeToKey[actualCode] || actualCode;
     }
 
     getDisplayKeyFromCode(code, fallbackKey) {
@@ -2028,7 +2100,17 @@ class KVMClient {
             'ArrowLeft': 'ArrowLeft',
             'ArrowRight': 'ArrowRight',
             'ArrowUp': 'ArrowUp',
-            'ArrowDown': 'ArrowDown'
+            'ArrowDown': 'ArrowDown',
+            
+            // Modifier keys (preserving left/right distinction)
+            'ShiftLeft': 'Left Shift',
+            'ShiftRight': 'Right Shift',
+            'ControlLeft': 'Left Ctrl',
+            'ControlRight': 'Right Ctrl',
+            'AltLeft': 'Left Alt',
+            'AltRight': 'Right Alt',
+            'MetaLeft': 'Left Meta',
+            'MetaRight': 'Right Meta'
         };
         
         // Return the mapped display key or fallback to the original key
@@ -2166,11 +2248,19 @@ class KVMClient {
         if (this.quitKeyCombo.metaKey) parts.push('Meta');
         if (this.quitKeyCombo.key) parts.push(this.quitKeyCombo.key.toUpperCase());
         
+        // Create keyboard lock status message
+        const keyboardLockStatus = this.keyboardLockActive 
+            ? '<div style="font-size: 12px; color: #4CAF50; opacity: 0.9;">✅ Enhanced key capture active</div>'
+            : this.keyboardLockSupported 
+                ? '<div style="font-size: 12px; color: #FF9800; opacity: 0.9;">⚠️ Enhanced capture available</div>'
+                : '<div style="font-size: 12px; color: #9E9E9E; opacity: 0.8;">ℹ️ Standard key capture</div>';
+        
         // Set the content with HTML for styled keys
         notification.innerHTML = `
             <div style="font-weight: 700; margin-bottom: 12px; font-size: 20px;">🎮 Control Mode Active</div>
             <div style="margin-bottom: 8px; font-size: 16px;">Press ${parts.map(key => `<kbd style="background-color: rgba(255, 255, 255, 0.25); border: 2px solid rgba(255, 255, 255, 0.4); border-radius: 6px; padding: 4px 10px; font-size: 14px; font-family: inherit; font-weight: 600; margin: 0 2px;">${key}</kbd>`).join(' + ')} to exit</div>
-            <div style="font-size: 13px; opacity: 0.8;">F3/F11 keys via test buttons</div>
+            <div style="font-size: 13px; opacity: 0.8; margin-bottom: 6px;">F3/F11 keys via test buttons</div>
+            ${keyboardLockStatus}
         `;
 
         notification.style.display = 'block';
@@ -2225,7 +2315,14 @@ class KVMClient {
         if (this.quitKeyCombo.key) {
             // Use event.code for comparison if available, otherwise fall back to event.key
             if (this.quitKeyCombo.code) {
-                return modifiersMatch && event.code === this.quitKeyCombo.code;
+                // Handle the ShiftRight bug in Keyboard Lock API where event.code is empty
+                // This is a known issue where ShiftRight reports event.code as '' but event.key as 'Shift'
+                let actualEventCode = event.code;
+                if (event.code === '' && event.key === 'Shift') {
+                    actualEventCode = 'ShiftRight'; // Assume right shift when code is empty but key is Shift
+                }
+                
+                return modifiersMatch && actualEventCode === this.quitKeyCombo.code;
             } else {
                 // Legacy support for old saved settings without code
                 return modifiersMatch && event.key === this.quitKeyCombo.key;
@@ -2304,12 +2401,19 @@ class KVMClient {
             // Check if it's a modifier-only key press
             const isModifierOnly = ['Control', 'Alt', 'Shift', 'Meta'].includes(event.key);
             
+            // Handle the ShiftRight bug in Keyboard Lock API where event.code is empty
+            // This is a known issue where ShiftRight reports event.code as '' but event.key as 'Shift'
+            let actualCode = event.code;
+            if (event.code === '' && event.key === 'Shift') {
+                actualCode = 'ShiftRight'; // Assume right shift when code is empty but key is Shift
+            }
+            
             // Use event.code to get the physical key instead of event.key for better display
             // event.code represents the physical key (e.g., 'KeyQ') while event.key represents the character ('œ' when Alt+Q)
             let displayKey = null;
             if (!isModifierOnly) {
                 // Convert event.code to a readable key name
-                displayKey = this.getDisplayKeyFromCode(event.code, event.key);
+                displayKey = this.getDisplayKeyFromCode(actualCode, event.key);
             }
             
             // Capture the key combination
@@ -2319,7 +2423,7 @@ class KVMClient {
                 shiftKey: event.shiftKey,
                 metaKey: event.metaKey,
                 key: displayKey,
-                code: event.code // Store the code for accurate key detection
+                code: actualCode // Store the corrected code for accurate key detection
             };
             
             // Display the captured combination

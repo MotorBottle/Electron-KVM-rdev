@@ -257,16 +257,14 @@ class HIDManager {
         this.activeKeys.clear();
         console.log('Keyboard state reset - all keys released');
       } else if (data.type === 'keydown') {
-        // Build modifier state from event flags (more reliable than key detection)
-        this.modifierState = 0;
-        if (data.ctrlKey) this.modifierState |= 1;   // Left Control
-        if (data.shiftKey) this.modifierState |= 2;  // Left Shift
-        if (data.altKey) this.modifierState |= 4;    // Left Alt
-        if (data.metaKey) this.modifierState |= 8;   // Left Meta/Cmd
-        
         // Check if this is a modifier key press (for individual modifier key tracking)
         const modifierCode = this.getModifierCode(data.key, data.code);
         const isModifierKey = modifierCode > 0;
+        
+        if (isModifierKey) {
+          // For modifier keys, add the specific left/right code to current state
+          this.modifierState |= modifierCode;
+        }
         
         if (!isModifierKey) {
           // Regular key press - use physical key code
@@ -289,16 +287,14 @@ class HIDManager {
         }
         
       } else if (data.type === 'keyup') {
-        // Build modifier state from event flags (more reliable than key detection)
-        this.modifierState = 0;
-        if (data.ctrlKey) this.modifierState |= 1;   // Left Control
-        if (data.shiftKey) this.modifierState |= 2;  // Left Shift
-        if (data.altKey) this.modifierState |= 4;    // Left Alt
-        if (data.metaKey) this.modifierState |= 8;   // Left Meta/Cmd
-        
         // Check if this is a modifier key release (for individual modifier key tracking)
         const modifierCode = this.getModifierCode(data.key, data.code);
         const isModifierKey = modifierCode > 0;
+        
+        if (isModifierKey) {
+          // For modifier keys, remove the specific left/right code from current state
+          this.modifierState &= ~modifierCode;
+        }
         
         if (!isModifierKey) {
           // Regular key release - use physical key code
@@ -346,6 +342,13 @@ class HIDManager {
   }
 
   getModifierCode(key, code) {
+    // Handle the ShiftRight bug in Keyboard Lock API where event.code is empty
+    // This is a known issue where ShiftRight reports event.code as '' but event.key as 'Shift'
+    let actualCode = code;
+    if (code === '' && key === 'Shift') {
+      actualCode = 'ShiftRight';
+    }
+    
     // Modifier keys for byte 2 of keyboard buffer
     const modifierMap = {
       // Physical keys via code (more reliable)
@@ -358,15 +361,15 @@ class HIDManager {
       'AltRight': 64,      // Right Alt
       'MetaRight': 128,    // Right GUI (Cmd)
       
-      // Fallback via key name
+      // Fallback via key name (only for left modifiers)
       'Control': 1,        
       'Shift': 2,          
       'Alt': 4,            
       'Meta': 8            
     };
     
-    // Try code first, then key
-    return modifierMap[code] || modifierMap[key] || 0;
+    // Try actual code first, then key
+    return modifierMap[actualCode] || modifierMap[key] || 0;
   }
 
   getKeyCode(key, code) {
