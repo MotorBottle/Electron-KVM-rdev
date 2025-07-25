@@ -12,9 +12,10 @@ class HIDManager {
     this.modifierState = 0;
     this.activeKeys = new Set(); // Track which keys are currently pressed
     
-    // Track last known mouse position for button events
+    // Track last known mouse position and button state
     this.lastX = 0;
     this.lastY = 0;
+    this.currentButtonState = 0; // Track currently pressed mouse buttons
   }
 
   getDevices() {
@@ -180,12 +181,17 @@ class HIDManager {
           const click_y_low = click_y_int & 0xFF;
           const click_y_high = (click_y_int >> 8) & 0x7F;
           
-          const clickButtonState = data.buttonsPressed || (data.type === 'mousedown' ? this.getMouseButtonCode(data.button) : 0);
+          // Use button state from renderer (more reliable) or fallback to individual button
+          const clickButtonState = data.buttonsPressed !== undefined ? data.buttonsPressed : 
+            (data.type === 'mousedown' ? this.getMouseButtonCode(data.button) : 0);
+          
+          // Update our tracking to match renderer state
+          this.currentButtonState = clickButtonState;
           
           buffer = [2, 0, clickButtonState, click_x_low, click_x_high, click_y_low, click_y_high, 0, 0];
           break;
         case 'wheel':
-          // Mouse wheel scroll - include position where scrolling occurs
+          // Mouse wheel scroll - include position where scrolling occurs and preserve button state
           const wheel_x = data.x !== undefined ? Math.max(0, Math.min(0x7FFF, data.x)) : (this.lastX || 0);
           const wheel_y = data.y !== undefined ? Math.max(0, Math.min(0x7FFF, data.y)) : (this.lastY || 0);
           
@@ -202,10 +208,21 @@ class HIDManager {
           const wheel_y_high = (wheel_y_int >> 8) & 0x7F;
           
           const wheelDelta = Math.max(-127, Math.min(127, Math.round(data.delta / 120)));
-          buffer = [2, 0, 0, wheel_x_low, wheel_x_high, wheel_y_low, wheel_y_high, wheelDelta, 0];
+          // Use button state from renderer or preserve current state
+          const wheelButtonState = data.buttonsPressed !== undefined ? data.buttonsPressed : this.currentButtonState;
+          
+          // Update our tracking to match renderer state
+          if (data.buttonsPressed !== undefined) {
+            this.currentButtonState = data.buttonsPressed;
+          }
+          
+          buffer = [2, 0, wheelButtonState, wheel_x_low, wheel_x_high, wheel_y_low, wheel_y_high, wheelDelta, 0];
           break;
         case 'reset':
           // Reset mouse state
+          this.currentButtonState = 0;
+          this.lastX = 0;
+          this.lastY = 0;
           buffer = [2, 0, 0, 0, 0, 0, 0, 0, 0];
           break;
         default:

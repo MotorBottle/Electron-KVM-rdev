@@ -2,6 +2,7 @@ class KVMClient {
     constructor() {
         this.videoConnected = false;
         this.hidConnected = false;
+        this.manualHIDDisconnect = false; // Track if HID was manually disconnected
         this.mouseCaptured = false;
         this.mouseMode = 'absolute'; // 'absolute' or 'relative'
         this.currentStream = null;
@@ -233,7 +234,7 @@ class KVMClient {
 
     bindEvents() {
         // Video controls
-        this.refreshDevicesBtn.addEventListener('click', () => this.refreshVideoDevicesWithReconnect());
+        this.refreshDevicesBtn.addEventListener('click', () => this.refreshAllDevices());
         this.startVideoBtn.addEventListener('click', () => this.startVideo());
         this.stopVideoBtn.addEventListener('click', () => this.stopVideo());
         
@@ -508,6 +509,21 @@ class KVMClient {
         
         // Start periodic HID device monitoring
         this.startHIDMonitoring();
+    }
+
+    async refreshAllDevices() {
+        console.log('Refreshing all devices (video and HID)...');
+        
+        // Refresh both video and HID devices concurrently
+        try {
+            await Promise.all([
+                this.refreshVideoDevicesWithReconnect(),
+                this.refreshHID()
+            ]);
+            console.log('All devices refreshed successfully');
+        } catch (error) {
+            console.error('Error refreshing devices:', error);
+        }
     }
 
     async refreshVideoDevicesWithReconnect() {
@@ -959,10 +975,8 @@ class KVMClient {
             const result = await window.electronAPI.connectHIDDevice(devicePath);
             if (result.success) {
                 this.hidConnected = true;
+                this.manualHIDDisconnect = false; // Clear manual disconnect flag on successful connection
                 this.updateHIDStatus();
-                
-                this.connectHIDBtn.disabled = true;
-                this.disconnectHIDBtn.disabled = false;
                 
                 // Stop monitoring when successfully connected
                 this.stopHIDMonitoring();
@@ -977,21 +991,67 @@ class KVMClient {
 
     async disconnectHID() {
         try {
+            this.manualHIDDisconnect = true; // Mark as manual disconnect
             await window.electronAPI.disconnectHIDDevice();
             this.hidConnected = false;
             this.updateHIDStatus();
             
-            this.connectHIDBtn.disabled = false;
-            this.disconnectHIDBtn.disabled = true;
-            
             if (this.mouseCaptured) {
-                this.releaseMouseCapture();
+                await this.releaseMouseCapture();
             }
             
-            // Restart monitoring when disconnected to auto-reconnect if device comes back
-            this.startHIDMonitoring();
+            // Don't restart monitoring for manual disconnects to prevent auto-reconnection
+            this.stopHIDMonitoring();
+            console.log('HID manually disconnected - auto-reconnection disabled');
         } catch (error) {
             console.error('Error disconnecting HID:', error);
+        }
+    }
+
+    async refreshHID() {
+        try {
+            // Store current device selection
+            const currentDevicePath = this.hidDevicesSelect.value;
+            
+            // Full disconnect first
+            if (this.hidConnected) {
+                console.log('Refreshing HID: Disconnecting current device...');
+                await window.electronAPI.disconnectHIDDevice();
+                this.hidConnected = false;
+                
+                if (this.mouseCaptured) {
+                    await this.releaseMouseCapture();
+                }
+            }
+            
+            // Stop any monitoring
+            this.stopHIDMonitoring();
+            
+            // Clear flags and reset state
+            this.manualHIDDisconnect = false;
+            this.updateHIDStatus();
+            
+            // Refresh device list
+            console.log('Refreshing HID: Loading device list...');
+            await this.loadHIDDevices();
+            
+            // Try to reconnect to the same device if it's still available
+            if (currentDevicePath && this.hidDevicesSelect.querySelector(`option[value="${currentDevicePath}"]`)) {
+                console.log('Refreshing HID: Reconnecting to previous device...');
+                this.hidDevicesSelect.value = currentDevicePath;
+                await this.connectHID();
+                
+            } else {
+                // Start monitoring for auto-connection when device not found
+                this.startHIDMonitoring();
+                console.log('Refreshing HID: Device list refreshed, monitoring restarted');
+            }
+            
+            // Force UI update to ensure button states are correct
+            this.updateHIDStatus();
+        } catch (error) {
+            console.error('Error refreshing HID:', error);
+            alert('Error refreshing HID connection');
         }
     }
 
@@ -1312,7 +1372,8 @@ class KVMClient {
                     type: 'wheel',
                     delta: event.deltaY * scrollMultiplier,
                     x: x,  // Include current position
-                    y: y   // Include current position
+                    y: y,   // Include current position
+                    buttonsPressed: this.mouseButtonsPressed // Preserve button state during scroll
                 });
             }
             if (Math.abs(event.deltaX) > 0) {
@@ -1321,7 +1382,8 @@ class KVMClient {
                     type: 'wheel',
                     delta: event.deltaX * scrollMultiplier,
                     x: x,  // Include current position
-                    y: y   // Include current position
+                    y: y,   // Include current position
+                    buttonsPressed: this.mouseButtonsPressed // Preserve button state during scroll
                 });
             }
         } catch (error) {
@@ -1368,6 +1430,10 @@ class KVMClient {
     updateHIDStatus() {
         this.hidStatus.textContent = this.hidConnected ? 'Connected' : 'Disconnected';
         this.hidStatus.setAttribute('data-status', this.hidConnected ? 'connected' : 'disconnected');
+        
+        // Update connect/disconnect button states
+        this.connectHIDBtn.disabled = this.hidConnected;
+        this.disconnectHIDBtn.disabled = !this.hidConnected;
         
         // Enable/disable quick control buttons based on HID connection
         this.sendCADBtn.disabled = !this.hidConnected;
@@ -1980,7 +2046,7 @@ class KVMClient {
     startHIDMonitoring() {
         // Check for new HID devices every 3 seconds
         this.hidMonitorInterval = setInterval(async () => {
-            if (!this.hidConnected) {
+            if (!this.hidConnected && !this.manualHIDDisconnect) {
                 await this.loadHIDDevices();
             }
         }, 3000);
