@@ -471,12 +471,23 @@ class KVMClient {
         }
 
         try {
-            // Lock common system keys and function keys
+            // Lock comprehensive set of system keys that might interfere with KVM control
             await navigator.keyboard.lock([
-                'Escape', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 
+                // Function keys
+                'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 
                 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
+                
+                // ALL modifier keys (critical for system shortcuts)
                 'MetaLeft', 'MetaRight', 'AltLeft', 'AltRight',
-                'Tab', 'ControlLeft', 'ControlRight'
+                'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight',
+                
+                // System navigation keys
+                'Tab', 'Escape', 'Space', 'CapsLock',
+                
+                // Common system shortcut keys
+                'PrintScreen', 'ScrollLock', 'Pause',
+                'Insert', 'Delete', 'Home', 'End', 'PageUp', 'PageDown',
+                'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'
             ]);
             
             this.keyboardLockActive = true;
@@ -1580,12 +1591,14 @@ class KVMClient {
     async captureMouseKeyboard() {
         this.mouseCaptured = true;
         
-        // Activate Keyboard Lock API if supported
-        if (this.keyboardLockSupported) {
+        // Activate Keyboard Lock API if supported and in fullscreen
+        if (this.keyboardLockSupported && this.isFullscreen) {
             const lockActivated = await this.activateKeyboardLock();
             if (lockActivated) {
                 console.log('Enhanced key capture active - system keys will be captured');
             }
+        } else if (this.keyboardLockSupported && !this.isFullscreen) {
+            console.log('Keyboard Lock API requires fullscreen mode - use F11 or fullscreen button first');
         }
         
         // Register ESC key for control mode
@@ -2293,11 +2306,28 @@ class KVMClient {
                 this.showHeader(); // Show initially
                 clearTimeout(this.hideTimer);
                 this.hideTimer = setTimeout(() => this.hideHeader(), 2000); // Auto-hide after 2 seconds
+                
+                // If mouse capture is active and keyboard lock is supported, activate it
+                if (this.mouseCaptured && this.keyboardLockSupported && !this.keyboardLockActive) {
+                    // Small delay to ensure fullscreen is fully established
+                    setTimeout(async () => {
+                        const lockActivated = await this.activateKeyboardLock();
+                        if (lockActivated) {
+                            console.log('Enhanced key capture activated after entering fullscreen');
+                        }
+                    }, 100);
+                }
             } else {
                 // Not in fullscreen, always show header
                 this.header.style.display = 'flex';
                 this.showHeader();
                 clearTimeout(this.hideTimer); // No auto-hide when not fullscreen
+                
+                // Deactivate keyboard lock when exiting fullscreen
+                if (this.keyboardLockActive) {
+                    await this.deactivateKeyboardLock();
+                    console.log('Enhanced key capture deactivated after exiting fullscreen');
+                }
             }
         } catch (error) {
             console.error('Error toggling fullscreen:', error);
