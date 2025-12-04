@@ -3,18 +3,154 @@ const path = require('path');
 const HIDManager = require('./hid-manager');
 const VideoServer = require('./video-server');
 
-// Disable network services and SSL connections at startup
-app.commandLine.appendSwitch('--disable-features', 'CertificateTransparencyComponentUpdater');
-app.commandLine.appendSwitch('--disable-background-networking');
-app.commandLine.appendSwitch('--disable-background-timer-throttling');
-app.commandLine.appendSwitch('--disable-backgrounding-occluded-windows');
-app.commandLine.appendSwitch('--disable-component-update');
-app.commandLine.appendSwitch('--disable-default-apps');
-app.commandLine.appendSwitch('--disable-ipc-flooding-protection');
-app.commandLine.appendSwitch('--disable-web-security');
-app.commandLine.appendSwitch('--disable-features', 'VizDisplayCompositor');
-app.commandLine.appendSwitch('--disable-features', 'DnsOverHttps');
-app.commandLine.appendSwitch('--disable-domain-reliability');
+let rdevGrabber = null;
+let rdevRunning = false;
+let isInControlMode = false;
+let isWindowFocused = false;
+
+// Start/stop rdev grab based on focus + control state
+function updateGrabState() {
+  const shouldGrab = isInControlMode && isWindowFocused;
+  console.log('updateGrabState', { shouldGrab, isInControlMode, isWindowFocused, rdevRunning });
+  if (shouldGrab && !rdevRunning && rdevGrabber && typeof rdevGrabber.start_grab === 'function') {
+    // Check permissions before starting grab (macOS requirement)
+    if (!checkMacOSPermissions()) {
+      console.error('Cannot start keyboard grab: macOS permissions not granted');
+      return;
+    }
+
+    try {
+      rdevGrabber.start_grab((event) => {
+        if (!event) {
+          console.warn('rdev callback received null event');
+          return;
+        }
+
+        // Normalize event data from rdev
+        const payload = {
+          key: event.key || 'Unknown',
+          code: event.code || event.key || '',
+          eventType: event.event_type || event.eventType || 'down',
+          ctrlKey: !!(event.ctrl ?? event.ctrlKey),
+          altKey: !!(event.alt ?? event.altKey),
+          shiftKey: !!(event.shift ?? event.shiftKey),
+          metaKey: !!(event.meta ?? event.metaKey),
+          platformCode: event.platform_code ?? event.platformCode ?? null,
+          scanCode: event.scan_code ?? event.scanCode ?? null,
+          usbHid: event.usb_hid ?? event.usbHid ?? null,
+        };
+
+        console.log('━━━ RDEV EVENT ━━━', {
+          type: payload.eventType,
+          key: payload.key,
+          code: payload.code,
+          usbHid: payload.usbHid,
+          isInControlMode,
+          hidConnected: hidManager?.connected
+        });
+
+        // In control mode: send directly to HID
+        if (isInControlMode && hidManager && hidManager.connected) {
+          console.log('→ Sending to HID:', payload.key, payload.code);
+          const result = hidManager.sendKeyboardEvent({
+            type: payload.eventType === 'up' ? 'keyup' : 'keydown',
+            key: payload.key,
+            code: payload.code,
+            usbHid: payload.usbHid,
+            scanCode: payload.scanCode,
+            platformCode: payload.platformCode,
+            metaKey: payload.metaKey,
+            ctrlKey: payload.ctrlKey,
+            altKey: payload.altKey,
+            shiftKey: payload.shiftKey,
+          });
+          if (!result.success) {
+            console.error('✗ HID send failed:', result.error);
+          }
+        } else {
+          console.log('✗ Not sending to HID:', { isInControlMode, hidConnected: hidManager?.connected });
+        }
+
+        // Also send to renderer for quit key detection
+        if (mainWindow && mainWindow.webContents) {
+          mainWindow.webContents.send('global-key-pressed', payload);
+        }
+      });
+      rdevRunning = true;
+      console.log('✓ rdev grab started - capturing keyboard events');
+    } catch (err) {
+      console.error('Failed to start rdev grabber:', err);
+    }
+  } else if (!shouldGrab && rdevRunning && rdevGrabber && typeof rdevGrabber.stop_grab === 'function') {
+    try {
+      rdevGrabber.stop_grab();
+    } catch (err) {
+      console.warn('Failed to stop rdev grabber:', err);
+    }
+    rdevRunning = false;
+    console.log('✓ rdev grab stopped - keyboard released');
+  } else if (shouldGrab && rdevRunning) {
+    console.log('⚠ rdev already running');
+  } else if (!shouldGrab && !rdevRunning) {
+    console.log('⚠ rdev already stopped');
+  }
+}
+
+try {
+  const grabberPath = path.join(__dirname, '..', 'native', 'rdev-grabber');
+  rdevGrabber = require(grabberPath);
+  console.log('rdev-grabber loaded from', grabberPath);
+} catch (e) {
+  console.warn('rdev-grabber native module not loaded; system hotkeys will not be blocked. Build it via npm run build:native. Error:', e.message);
+}
+
+// Check macOS permissions (following RustDesk's approach)
+function checkMacOSPermissions() {
+  if (process.platform !== 'darwin') {
+    return true;
+  }
+
+  const { systemPreferences } = require('electron');
+
+  // Check for Input Monitoring permission (required for keyboard capture on macOS 10.15+)
+  const hasInputMonitoring = systemPreferences.isTrustedAccessibilityClient(false);
+
+  if (!hasInputMonitoring) {
+    console.warn('⚠️  PERMISSION REQUIRED: Input Monitoring / Accessibility access is not granted!');
+    console.warn('');
+    console.warn('To enable keyboard capture on macOS:');
+    console.warn('1. Open System Settings → Privacy & Security → Accessibility');
+    console.warn('2. Add "KVM Client" or "Electron" to the list');
+    console.warn('3. Restart the application');
+    console.warn('');
+    console.warn('Alternatively, the app will prompt you when you try to use keyboard capture.');
+
+    // Show system prompt to request permission
+    setTimeout(() => {
+      systemPreferences.isTrustedAccessibilityClient(true); // true = show prompt
+    }, 1000);
+
+    return false;
+  }
+
+  console.log('✅ macOS permissions granted: Input Monitoring / Accessibility');
+  return true;
+}
+
+// Disable network services and SSL connections at startup (guarded for safety)
+if (app && app.commandLine) {
+  app.commandLine.appendSwitch('--disable-features', 'CertificateTransparencyComponentUpdater');
+  app.commandLine.appendSwitch('--disable-background-networking');
+  app.commandLine.appendSwitch('--disable-background-timer-throttling');
+  app.commandLine.appendSwitch('--disable-backgrounding-occluded-windows');
+  app.commandLine.appendSwitch('--disable-component-update');
+  app.commandLine.appendSwitch('--disable-default-apps');
+  app.commandLine.appendSwitch('--disable-ipc-flooding-protection');
+  app.commandLine.appendSwitch('--disable-web-security');
+  app.commandLine.appendSwitch('--disable-features', 'VizDisplayCompositor');
+  app.commandLine.appendSwitch('--disable-features', 'DnsOverHttps');
+  app.commandLine.appendSwitch('--disable-domain-reliability');
+}
 
 let mainWindow;
 let hidManager;
@@ -39,77 +175,10 @@ function createWindow() {
     show: false,
     // Try to prevent macOS from handling function keys
     alwaysOnTop: false,
-    skipTaskbar: false
-  });
-
-  // Register global shortcuts to prevent macOS from intercepting them
-  
-  // Register F3 and F11 to prevent system capture and forward to renderer
-  // ESC will be registered dynamically when in control mode
-  const keysToRegister = ['F3', 'F11'];
-  
-  keysToRegister.forEach(key => {
-    try {
-      globalShortcut.register(key, () => {
-        console.log(`Global shortcut triggered: ${key}`);
-        if (mainWindow && mainWindow.webContents) {
-          mainWindow.webContents.send('global-key-pressed', { key, code: key });
-        }
-      });
-      console.log(`Successfully registered global shortcut: ${key}`);
-    } catch (error) {
-      console.error(`Failed to register global shortcut ${key}:`, error);
-    }
-  });
-  
-  // Try alternative combinations that might work better on macOS
-  const alternativeShortcuts = [
-    'Alt+F3', 'Shift+F3', 'Control+F3',
-    'Alt+F11', 'Shift+F11', 'Control+F11',
-    'CommandOrControl+F11'
-  ];
-  
-  alternativeShortcuts.forEach(shortcut => {
-    try {
-      globalShortcut.register(shortcut, () => {
-        const key = shortcut.includes('F3') ? 'F3' : 'F11';
-        console.log(`Alternative shortcut triggered: ${shortcut} -> ${key}`);
-        if (mainWindow && mainWindow.webContents) {
-          mainWindow.webContents.send('global-key-pressed', { key, code: key });
-        }
-      });
-    } catch (error) {
-      // Silently ignore alternative registration failures
-    }
+  skipTaskbar: false
   });
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-
-  // Set up webContents-level key interception
-  mainWindow.webContents.on('before-input-event', (event, input) => {
-    // Intercept F3, F11 when they might not be caught by global shortcuts
-    if (input.type === 'keyDown' && ['F3', 'F11'].includes(input.key)) {
-      console.log(`WebContents intercepted: ${input.key}`);
-      mainWindow.webContents.send('global-key-pressed', { 
-        key: input.key, 
-        code: input.code || input.key 
-      });
-      // Don't prevent the event, let it also go to the renderer
-    }
-  });
-  
-  // Additional attempt: try to capture all key events and filter for F3/F11
-  mainWindow.webContents.on('dom-ready', () => {
-    mainWindow.webContents.executeJavaScript(`
-      // Additional client-side interception
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'F3' || e.key === 'F11') {
-          console.log('DOM intercepted:', e.key);
-          window.electronAPI?.onGlobalKeyPressed?.(null, { key: e.key, code: e.code });
-        }
-      }, true);
-    `);
-  });
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -119,53 +188,17 @@ function createWindow() {
     mainWindow = null;
   });
 
-  // Track control mode state for focus/blur handling
-  let isInControlMode = false;
-
-  // Handle focus/blur for ESC key management
+  // Track focus to manage grab state
   mainWindow.on('focus', () => {
-    console.log('Window focused, re-registering shortcuts');
-    try {
-      // Unregister and re-register F3/F11 to ensure they're active
-      globalShortcut.unregister('F3');
-      globalShortcut.unregister('F11');
-      
-      globalShortcut.register('F3', () => {
-        console.log('F3 triggered on focus');
-        if (mainWindow && mainWindow.webContents) {
-          mainWindow.webContents.send('global-key-pressed', { key: 'F3', code: 'F3' });
-        }
-      });
-      
-      globalShortcut.register('F11', () => {
-        console.log('F11 triggered on focus');
-        if (mainWindow && mainWindow.webContents) {
-          mainWindow.webContents.send('global-key-pressed', { key: 'F11', code: 'F11' });
-        }
-      });
-
-      // Re-register ESC key if we're in control mode
-      if (isInControlMode && !globalShortcut.isRegistered('Escape')) {
-        globalShortcut.register('Escape', () => {
-          console.log('ESC key captured during control mode');
-          if (mainWindow && mainWindow.webContents) {
-            mainWindow.webContents.send('global-key-pressed', { key: 'Escape', code: 'Escape' });
-          }
-        });
-        console.log('ESC key re-registered on focus');
-      }
-    } catch (error) {
-      console.log('Focus re-registration failed:', error.message);
-    }
+    isWindowFocused = true;
+    console.log('Window focused');
+    updateGrabState();
   });
 
   mainWindow.on('blur', () => {
-    console.log('Window lost focus, unregistering ESC key');
-    // Always unregister ESC key when losing focus to prevent system interference
-    if (globalShortcut.isRegistered('Escape')) {
-      globalShortcut.unregister('Escape');
-      console.log('ESC key unregistered on blur');
-    }
+    isWindowFocused = false;
+    console.log('Window blurred');
+    updateGrabState();
   });
 
   // Create menu
@@ -201,19 +234,34 @@ function createWindow() {
 app.whenReady().then(() => {
   // Set app user model ID for Windows
   app.setAppUserModelId('com.motorbottle.kvm-client');
-  
+
+  // Check macOS permissions on startup
+  checkMacOSPermissions();
+
   createWindow();
-  
+
   // Initialize HID manager
   hidManager = new HIDManager();
-  
+
   // Initialize video server
   videoServer = new VideoServer();
-  
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
+  });
+
+  app.on('browser-window-focus', () => {
+    isWindowFocused = true;
+    console.log('Browser window focused');
+    updateGrabState();
+  });
+
+  app.on('browser-window-blur', () => {
+    isWindowFocused = false;
+    console.log('Browser window blurred');
+    updateGrabState();
   });
 });
 
@@ -227,6 +275,14 @@ app.on('before-quit', () => {
   // Unregister global shortcuts
   globalShortcut.unregisterAll();
   
+  if (rdevGrabber && typeof rdevGrabber.stop_grab === 'function') {
+    try {
+      rdevGrabber.stop_grab();
+    } catch (err) {
+      console.warn('Failed to stop rdev grabber:', err);
+    }
+  }
+
   if (hidManager) {
     hidManager.close();
   }
@@ -287,33 +343,13 @@ ipcMain.handle('toggle-fullscreen', async () => {
   return false;
 });
 
-// Manage ESC key registration based on control mode
+// Handle control mode changes - starts/stops rdev keyboard grabbing
 ipcMain.handle('set-control-mode', async (_, inControlMode) => {
-  // Update the control mode state for focus/blur handling
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('SET CONTROL MODE:', inControlMode);
+  console.log('Current state:', { isInControlMode, isWindowFocused, rdevRunning });
   isInControlMode = inControlMode;
-  
-  try {
-    if (inControlMode) {
-      // Register ESC key when entering control mode (only if window has focus)
-      if (mainWindow && mainWindow.isFocused() && !globalShortcut.isRegistered('Escape')) {
-        globalShortcut.register('Escape', () => {
-          console.log('ESC key captured during control mode');
-          if (mainWindow && mainWindow.webContents) {
-            mainWindow.webContents.send('global-key-pressed', { key: 'Escape', code: 'Escape' });
-          }
-        });
-        console.log('ESC key registered for control mode');
-      }
-    } else {
-      // Unregister ESC key when exiting control mode
-      if (globalShortcut.isRegistered('Escape')) {
-        globalShortcut.unregister('Escape');
-        console.log('ESC key unregistered - released for system use');
-      }
-    }
-    return true;
-  } catch (error) {
-    console.error('Error managing ESC key registration:', error);
-    return false;
-  }
+  updateGrabState();
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  return true;
 });

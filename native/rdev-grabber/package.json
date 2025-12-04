@@ -1,0 +1,13 @@
+{
+  "name": "rdev-grabber",
+  "version": "0.1.0",
+  "description": "rdev-based global keyboard grabber for Electron",
+  "main": "index.js",
+  "scripts": {
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.0"
+  }
+}

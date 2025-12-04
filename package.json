@@ -15,7 +15,8 @@
     "build": "electron-builder",
     "build:rebuild": "electron-builder --config.buildDependenciesFromSource=true",
     "dist": "electron-builder --publish=never",
-    "dist:rebuild": "electron-builder --publish=never --config.buildDependenciesFromSource=true"
+    "dist:rebuild": "electron-builder --publish=never --config.buildDependenciesFromSource=true",
+    "build:native": "cd native/rdev-grabber && npm install && npm run build"
   },
   "devDependencies": {
     "electron": "^28.0.0",

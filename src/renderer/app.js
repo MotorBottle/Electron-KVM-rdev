@@ -13,8 +13,6 @@ class KVMClient {
         this.reverseScroll = false; // Natural scrolling direction
         this.isFullscreen = false; // Track fullscreen state
         this.quitKeyCombo = { ctrlKey: true, altKey: true, shiftKey: false, metaKey: false, key: null, code: null }; // Default quit combination
-        this.keyboardLockSupported = false; // Track Keyboard Lock API support
-        this.keyboardLockActive = false; // Track if keyboard lock is currently active
         
         // Disable WebRTC's default STUN servers to prevent external network connections
         this.disableWebRTCExternalConnections();
@@ -29,8 +27,7 @@ class KVMClient {
         
         this.initializeElements();
         this.bindEvents();
-        this.setupGlobalKeyHandler();
-        this.checkKeyboardLockSupport();
+        this.setupGlobalKeyHandler();  // Setup rdev global key handler for quit key
         this.initializeVideo();
         this.applyLoadedSettings();
     }
@@ -299,28 +296,9 @@ class KVMClient {
             // Note: Mouse clicks when captured are handled by mousedown/mouseup events
         });
         
-        // Global keyboard handler for control exit and key capture
-        document.addEventListener('keydown', (e) => {
-            // Debug logging for F3 and F11
-            if (['F3', 'F11'].includes(e.key)) {
-                console.log(`Document keydown: ${e.key}, captured: ${this.mouseCaptured}, hidConnected: ${this.hidConnected}`);
-            }
-            
-            // Check for quit key combination
-            if (this.isQuitKeyCombo(e) && this.mouseCaptured) {
-                this.releaseMouseCaptureWithKeyReset();
-                e.preventDefault();
-                return;
-            }
-            
-            if (this.mouseCaptured && this.hidConnected) {
-                // Prevent default for ALL keys during capture to catch system keys
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                this.handleKeyboardEvent(e);
-            }
-        });
+        // NOTE: Keyboard events are now handled by rdev in main process when in control mode
+        // No need to listen to document keydown/keyup when rdev is active
+        // The setupGlobalKeyHandler() method handles rdev events for quit key detection
         
         // Handle pointer lock changes
         document.addEventListener('pointerlockchange', () => {
@@ -339,15 +317,6 @@ class KVMClient {
             }
         });
         
-        document.addEventListener('keyup', (e) => {
-            if (this.mouseCaptured && this.hidConnected) {
-                // Prevent default for ALL keys during capture
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                this.handleKeyboardEvent(e);
-            }
-        });
         
         // Video element mouse events (for both absolute and relative modes)
         this.videoElement.addEventListener('mousemove', (e) => {
@@ -454,96 +423,33 @@ class KVMClient {
         this.setupVirtualKeyboard();
     }
 
-    checkKeyboardLockSupport() {
-        // Check if Keyboard Lock API is supported
-        if ('keyboard' in navigator && 'lock' in navigator.keyboard) {
-            this.keyboardLockSupported = true;
-            console.log('Keyboard Lock API supported - enhanced key capture available');
-        } else {
-            this.keyboardLockSupported = false;
-            console.log('Keyboard Lock API not supported - using standard key capture');
-        }
-    }
-
-    async activateKeyboardLock() {
-        if (!this.keyboardLockSupported) {
-            return false;
-        }
-
-        try {
-            // Lock comprehensive set of system keys that might interfere with KVM control
-            await navigator.keyboard.lock([
-                // Function keys
-                'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 
-                'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
-                
-                // ALL modifier keys (critical for system shortcuts)
-                'MetaLeft', 'MetaRight', 'AltLeft', 'AltRight',
-                'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight',
-                
-                // System navigation keys
-                'Tab', 'Escape', 'Space', 'CapsLock',
-                
-                // Common system shortcut keys
-                'PrintScreen', 'ScrollLock', 'Pause',
-                'Insert', 'Delete', 'Home', 'End', 'PageUp', 'PageDown',
-                'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'
-            ]);
-            
-            this.keyboardLockActive = true;
-            console.log('Keyboard Lock API activated - system keys captured');
-            return true;
-        } catch (error) {
-            console.error('Failed to activate Keyboard Lock API:', error);
-            return false;
-        }
-    }
-
-    async deactivateKeyboardLock() {
-        if (!this.keyboardLockSupported || !this.keyboardLockActive) {
-            return;
-        }
-
-        try {
-            // Release all locked keys
-            await navigator.keyboard.unlock();
-            this.keyboardLockActive = false;
-            console.log('Keyboard Lock API deactivated - system keys released');
-        } catch (error) {
-            console.error('Failed to deactivate Keyboard Lock API:', error);
-        }
-    }
 
     setupGlobalKeyHandler() {
-        // Listen for global key events from main process (F3, F11, ESC)
+        // Listen for rdev key events from main process for quit key detection
         if (window.electronAPI && window.electronAPI.onGlobalKeyPressed) {
             window.electronAPI.onGlobalKeyPressed((event, data) => {
-                console.log('Global key intercepted:', data);
-                
-                // Only handle these keys if mouse is captured and HID is connected
-                if (this.mouseCaptured && this.hidConnected) {
-                    // Create a synthetic keyboard event
+                if (!this.mouseCaptured) return;
+
+                // Only check for quit key combination in renderer
+                // Main process handles sending to HID
+                const eventType = data.eventType || data.event_type;
+
+                // Check quit key on keydown only
+                if (eventType === 'down') {
                     const syntheticEvent = {
                         key: data.key,
                         code: data.code,
-                        type: 'keydown',
-                        metaKey: false,
-                        ctrlKey: false,
-                        altKey: false,
-                        shiftKey: false,
-                        preventDefault: () => {},
-                        stopPropagation: () => {},
-                        stopImmediatePropagation: () => {}
+                        metaKey: !!(data.metaKey ?? data.meta),
+                        ctrlKey: !!(data.ctrlKey ?? data.ctrl),
+                        altKey: !!(data.altKey ?? data.alt),
+                        shiftKey: !!(data.shiftKey ?? data.shift),
                     };
-                    
-                    // Send the key event to HID
-                    this.handleKeyboardEvent(syntheticEvent);
-                    
-                    // Also send keyup event after a short delay
-                    setTimeout(() => {
-                        const keyupEvent = { ...syntheticEvent, type: 'keyup' };
-                        this.handleKeyboardEvent(keyupEvent);
-                    }, 50);
+
+                    // Check if quit key combination is pressed
+                    if (this.isQuitKeyCombo(syntheticEvent)) {
+                        console.log('Quit key detected, exiting control mode');
+                        this.releaseMouseCaptureWithKeyReset();
+                    }
                 }
             });
         }
@@ -1255,12 +1161,6 @@ class KVMClient {
         this.mouseCaptureOverlay.style.display = 'none';
         document.body.style.cursor = 'default';
         
-        // Deactivate Keyboard Lock API if active
-        if (this.keyboardLockActive) {
-            await this.deactivateKeyboardLock();
-            console.log('Enhanced key capture deactivated - system keys released');
-        }
-        
         // Unregister ESC key when exiting control mode
         try {
             await window.electronAPI.setControlMode(false);
@@ -1460,36 +1360,6 @@ class KVMClient {
         }
     }
 
-    async handleKeyboardEvent(event) {
-        if (!this.hidConnected) return;
-
-        const eventType = event.type === 'keydown' ? 'keydown' : 'keyup';
-        
-        // Log key events for debugging
-        console.log('Key event:', {
-            type: eventType,
-            key: event.key,
-            code: event.code,
-            metaKey: event.metaKey,
-            ctrlKey: event.ctrlKey,
-            altKey: event.altKey,
-            shiftKey: event.shiftKey
-        });
-        
-        try {
-            await window.electronAPI.sendKeyboardEvent({
-                type: eventType,
-                key: event.key,
-                code: event.code,
-                metaKey: event.metaKey,
-                ctrlKey: event.ctrlKey,
-                altKey: event.altKey,
-                shiftKey: event.shiftKey
-            });
-        } catch (error) {
-            console.error('Error sending keyboard event:', error);
-        }
-    }
 
     updateVideoStatus() {
         this.videoStatus.textContent = this.videoConnected ? 'Connected' : 'Disconnected';
@@ -1590,16 +1460,6 @@ class KVMClient {
 
     async captureMouseKeyboard() {
         this.mouseCaptured = true;
-        
-        // Activate Keyboard Lock API if supported and in fullscreen
-        if (this.keyboardLockSupported && this.isFullscreen) {
-            const lockActivated = await this.activateKeyboardLock();
-            if (lockActivated) {
-                console.log('Enhanced key capture active - system keys will be captured');
-            }
-        } else if (this.keyboardLockSupported && !this.isFullscreen) {
-            console.log('Keyboard Lock API requires fullscreen mode - use F11 or fullscreen button first');
-        }
         
         // Register ESC key for control mode
         try {
@@ -2260,20 +2120,12 @@ class KVMClient {
         if (this.quitKeyCombo.shiftKey) parts.push('Shift');
         if (this.quitKeyCombo.metaKey) parts.push('Meta');
         if (this.quitKeyCombo.key) parts.push(this.quitKeyCombo.key.toUpperCase());
-        
-        // Create keyboard lock status message
-        const keyboardLockStatus = this.keyboardLockActive 
-            ? '<div style="font-size: 12px; color: #4CAF50; opacity: 0.9;">✅ Enhanced key capture active</div>'
-            : this.keyboardLockSupported 
-                ? '<div style="font-size: 12px; color: #FF9800; opacity: 0.9;">⚠️ Enhanced capture available</div>'
-                : '<div style="font-size: 12px; color: #9E9E9E; opacity: 0.8;">ℹ️ Standard key capture</div>';
-        
+
         // Set the content with HTML for styled keys
         notification.innerHTML = `
             <div style="font-weight: 700; margin-bottom: 12px; font-size: 20px;">🎮 Control Mode Active</div>
             <div style="margin-bottom: 8px; font-size: 16px;">Press ${parts.map(key => `<kbd style="background-color: rgba(255, 255, 255, 0.25); border: 2px solid rgba(255, 255, 255, 0.4); border-radius: 6px; padding: 4px 10px; font-size: 14px; font-family: inherit; font-weight: 600; margin: 0 2px;">${key}</kbd>`).join(' + ')} to exit</div>
-            <div style="font-size: 13px; opacity: 0.8; margin-bottom: 6px;">F3/F11 keys via test buttons</div>
-            ${keyboardLockStatus}
+            <div style="font-size: 12px; color: #4CAF50; opacity: 0.9;">✅ Keyboard capture active</div>
         `;
 
         notification.style.display = 'block';
@@ -2306,28 +2158,11 @@ class KVMClient {
                 this.showHeader(); // Show initially
                 clearTimeout(this.hideTimer);
                 this.hideTimer = setTimeout(() => this.hideHeader(), 2000); // Auto-hide after 2 seconds
-                
-                // If mouse capture is active and keyboard lock is supported, activate it
-                if (this.mouseCaptured && this.keyboardLockSupported && !this.keyboardLockActive) {
-                    // Small delay to ensure fullscreen is fully established
-                    setTimeout(async () => {
-                        const lockActivated = await this.activateKeyboardLock();
-                        if (lockActivated) {
-                            console.log('Enhanced key capture activated after entering fullscreen');
-                        }
-                    }, 100);
-                }
             } else {
                 // Not in fullscreen, always show header
                 this.header.style.display = 'flex';
                 this.showHeader();
                 clearTimeout(this.hideTimer); // No auto-hide when not fullscreen
-                
-                // Deactivate keyboard lock when exiting fullscreen
-                if (this.keyboardLockActive) {
-                    await this.deactivateKeyboardLock();
-                    console.log('Enhanced key capture deactivated after exiting fullscreen');
-                }
             }
         } catch (error) {
             console.error('Error toggling fullscreen:', error);

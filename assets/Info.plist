@@ -16,11 +16,37 @@
     <string>1.0.0</string>
     <key>LSMinimumSystemVersion</key>
     <string>10.15.0</string>
+
+    <!-- Camera and Microphone -->
     <key>NSCameraUsageDescription</key>
     <string>This app requires camera access to capture video from external devices.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>This app may access the microphone for audio capture.</string>
     <key>NSCameraUseContinuityCameraDeviceType</key>
+    <true/>
+
+    <!-- Accessibility API - Required for keyboard/mouse capture -->
+    <key>NSAccessibilityUsageDescription</key>
+    <string>KVM Client needs accessibility access to capture and forward keyboard and mouse events to the controlled device.</string>
+
+    <!-- Input Monitoring - Required for keyboard event capture on macOS 10.15+ -->
+    <key>NSInputMonitoringUsageDescription</key>
+    <string>KVM Client monitors keyboard input to forward keystrokes to the remote device you are controlling.</string>
+
+    <!-- Screen Recording - May be needed for video capture -->
+    <key>NSScreenCaptureDescription</key>
+    <string>KVM Client captures video from external devices for remote control.</string>
+
+    <!-- USB Device Access -->
+    <key>NSUSBDeviceUsageDescription</key>
+    <string>KVM Client needs USB access to communicate with HID devices for keyboard and mouse control.</string>
+
+    <!-- High Resolution Capable -->
+    <key>NSHighResolutionCapable</key>
+    <true/>
+
+    <!-- Main Thread Checker disabled for rdev -->
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
 </dict>
 </plist>

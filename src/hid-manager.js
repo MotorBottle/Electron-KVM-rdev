@@ -135,8 +135,6 @@ class HIDManager {
 
       switch (data.type) {
         case 'move':
-          // Relative mouse movement (report ID 7)
-          // Handle signed 8-bit values for movement deltas
           const deltaX = Math.max(-127, Math.min(127, data.x));
           const deltaY = Math.max(-127, Math.min(127, data.y));
           const deltaX_byte = deltaX < 0 ? (256 + deltaX) : deltaX;
@@ -144,82 +142,53 @@ class HIDManager {
           buffer = [7, 0, 0, deltaX_byte, deltaY_byte, 0, 0, 0, 0];
           break;
         case 'abs':
-          // Absolute mouse positioning (report ID 2)
-          // Scale coordinates to 15-bit range (0-32767) as expected by Python implementation
           const x_scaled = Math.max(0, Math.min(0x7FFF, data.x));
           const y_scaled = Math.max(0, Math.min(0x7FFF, data.y));
           const buttonState = data.buttonsPressed || 0;
-          
-          // Ensure coordinates are valid integers
           const x_int = Math.round(x_scaled);
           const y_int = Math.round(y_scaled);
-          
-          // Split into low and high bytes
           const x_low = x_int & 0xFF;
-          const x_high = (x_int >> 8) & 0x7F; // Mask to 7 bits for safety
+          const x_high = (x_int >> 8) & 0x7F;
           const y_low = y_int & 0xFF;
-          const y_high = (y_int >> 8) & 0x7F; // Mask to 7 bits for safety
-          
+          const y_high = (y_int >> 8) & 0x7F;
           buffer = [2, 0, buttonState, x_low, x_high, y_low, y_high, 0, 0];
           break;
         case 'mousedown':
         case 'mouseup':
-          // Mouse button events - MUST include current position
-          // Use coordinates from data, or maintain last known position
           const click_x = data.x !== undefined ? Math.max(0, Math.min(0x7FFF, data.x)) : (this.lastX || 0);
           const click_y = data.y !== undefined ? Math.max(0, Math.min(0x7FFF, data.y)) : (this.lastY || 0);
-          
-          // Store last position for future button events
           if (data.x !== undefined) this.lastX = click_x;
           if (data.y !== undefined) this.lastY = click_y;
-          
           const click_x_int = Math.round(click_x);
           const click_y_int = Math.round(click_y);
-          
           const click_x_low = click_x_int & 0xFF;
           const click_x_high = (click_x_int >> 8) & 0x7F;
           const click_y_low = click_y_int & 0xFF;
           const click_y_high = (click_y_int >> 8) & 0x7F;
-          
-          // Use button state from renderer (more reliable) or fallback to individual button
-          const clickButtonState = data.buttonsPressed !== undefined ? data.buttonsPressed : 
+          const clickButtonState = data.buttonsPressed !== undefined ? data.buttonsPressed :
             (data.type === 'mousedown' ? this.getMouseButtonCode(data.button) : 0);
-          
-          // Update our tracking to match renderer state
           this.currentButtonState = clickButtonState;
-          
           buffer = [2, 0, clickButtonState, click_x_low, click_x_high, click_y_low, click_y_high, 0, 0];
           break;
         case 'wheel':
-          // Mouse wheel scroll - include position where scrolling occurs and preserve button state
           const wheel_x = data.x !== undefined ? Math.max(0, Math.min(0x7FFF, data.x)) : (this.lastX || 0);
           const wheel_y = data.y !== undefined ? Math.max(0, Math.min(0x7FFF, data.y)) : (this.lastY || 0);
-          
-          // Store last position
           if (data.x !== undefined) this.lastX = wheel_x;
           if (data.y !== undefined) this.lastY = wheel_y;
-          
           const wheel_x_int = Math.round(wheel_x);
           const wheel_y_int = Math.round(wheel_y);
-          
           const wheel_x_low = wheel_x_int & 0xFF;
           const wheel_x_high = (wheel_x_int >> 8) & 0x7F;
           const wheel_y_low = wheel_y_int & 0xFF;
           const wheel_y_high = (wheel_y_int >> 8) & 0x7F;
-          
           const wheelDelta = Math.max(-127, Math.min(127, Math.round(data.delta / 120)));
-          // Use button state from renderer or preserve current state
           const wheelButtonState = data.buttonsPressed !== undefined ? data.buttonsPressed : this.currentButtonState;
-          
-          // Update our tracking to match renderer state
           if (data.buttonsPressed !== undefined) {
             this.currentButtonState = data.buttonsPressed;
           }
-          
           buffer = [2, 0, wheelButtonState, wheel_x_low, wheel_x_high, wheel_y_low, wheel_y_high, wheelDelta, 0];
           break;
         case 'reset':
-          // Reset mouse state
           this.currentButtonState = 0;
           this.lastX = 0;
           this.lastY = 0;
@@ -229,10 +198,8 @@ class HIDManager {
           buffer = [2, 0, 0, 0, 0, 0, 0, 0, 0];
       }
 
-      // Python rotation: buffer[-1:] + buffer[:-1] then buffer[0] = 0
       const rotatedBuffer = [buffer[8], ...buffer.slice(0, 8)];
       rotatedBuffer[0] = 0;
-      
       this.device.write(rotatedBuffer);
       return { success: true };
     } catch (error) {
@@ -247,81 +214,59 @@ class HIDManager {
     }
 
     try {
-      // Keyboard buffer: [report_id, reserved, modifier_keys, reserved, key1, key2, key3, key4, key5, key6, reserved]
+      // Keyboard HID report: [report_id, reserved, modifier_byte, reserved, key1-6, reserved]
       let buffer = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
       if (data.type === 'reset') {
         // Reset all keys and internal state
-        buffer = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         this.modifierState = 0;
         this.activeKeys.clear();
-        console.log('Keyboard state reset - all keys released');
+        console.log('Keyboard reset');
       } else if (data.type === 'keydown') {
-        // Check if this is a modifier key press (for individual modifier key tracking)
         const modifierCode = this.getModifierCode(data.key, data.code);
-        const isModifierKey = modifierCode > 0;
-        
-        if (isModifierKey) {
-          // For modifier keys, add the specific left/right code to current state
+
+        if (modifierCode > 0) {
+          // Modifier key press
           this.modifierState |= modifierCode;
-        }
-        
-        if (!isModifierKey) {
-          // Regular key press - use physical key code
-          const keyCode = this.getKeyCode(data.key, data.code);
+          console.log('Modifier DOWN:', data.key, 'state:', this.modifierState.toString(2).padStart(8, '0'));
+        } else {
+          // Regular key press
+          const keyCode = this.getKeyCode(data.key, data.code, data.usbHid, data.scanCode, data.platformCode);
           if (keyCode > 0) {
             this.activeKeys.add(keyCode);
-            console.log('Key pressed:', data.key, data.code, 'keyCode:', keyCode.toString(16), 'modifiers:', this.modifierState.toString(16));
+            console.log('Key DOWN:', data.key, 'code:0x' + keyCode.toString(16));
+          } else {
+            console.warn('Unknown key:', data.key, data.code);
           }
-        } else {
-          console.log('Modifier key pressed:', data.key, data.code, 'state:', this.modifierState.toString(16));
         }
-        
-        // Build buffer with current state
-        buffer[2] = this.modifierState;
-        
-        // Add up to 6 active keys
-        const keyArray = Array.from(this.activeKeys).slice(0, 6);
-        for (let i = 0; i < keyArray.length; i++) {
-          buffer[4 + i] = keyArray[i];
-        }
-        
       } else if (data.type === 'keyup') {
-        // Check if this is a modifier key release (for individual modifier key tracking)
         const modifierCode = this.getModifierCode(data.key, data.code);
-        const isModifierKey = modifierCode > 0;
-        
-        if (isModifierKey) {
-          // For modifier keys, remove the specific left/right code from current state
+
+        if (modifierCode > 0) {
+          // Modifier key release
           this.modifierState &= ~modifierCode;
-        }
-        
-        if (!isModifierKey) {
-          // Regular key release - use physical key code
-          const keyCode = this.getKeyCode(data.key, data.code);
+          console.log('Modifier UP:', data.key, 'state:', this.modifierState.toString(2).padStart(8, '0'));
+        } else {
+          // Regular key release
+          const keyCode = this.getKeyCode(data.key, data.code, data.usbHid, data.scanCode, data.platformCode);
           if (keyCode > 0) {
             this.activeKeys.delete(keyCode);
-            console.log('Key released:', data.key, data.code, 'keyCode:', keyCode.toString(16), 'modifiers:', this.modifierState.toString(16));
+            console.log('Key UP:', data.key, 'code:0x' + keyCode.toString(16));
           }
-        } else {
-          console.log('Modifier key released:', data.key, data.code, 'state:', this.modifierState.toString(16));
-        }
-        
-        // Build buffer with current state
-        buffer[2] = this.modifierState;
-        
-        // Add up to 6 active keys
-        const keyArray = Array.from(this.activeKeys).slice(0, 6);
-        for (let i = 0; i < keyArray.length; i++) {
-          buffer[4 + i] = keyArray[i];
         }
       }
 
-      // Python rotation: buffer[-1:] + buffer[:-1] then buffer[0] = 0
+      // Build HID report with current state
+      buffer[2] = this.modifierState;
+      const keyArray = Array.from(this.activeKeys).slice(0, 6);
+      for (let i = 0; i < keyArray.length; i++) {
+        buffer[4 + i] = keyArray[i];
+      }
+
+      // Rotate buffer (Python: buffer[-1:] + buffer[:-1], then buffer[0] = 0)
       const rotatedBuffer = [buffer[10], ...buffer.slice(0, 10)];
       rotatedBuffer[0] = 0;
-      
-      console.log('Sending keyboard buffer:', rotatedBuffer);
+
       this.device.write(rotatedBuffer);
       return { success: true };
     } catch (error) {
@@ -372,7 +317,19 @@ class HIDManager {
     return modifierMap[actualCode] || modifierMap[key] || 0;
   }
 
-  getKeyCode(key, code) {
+  getKeyCode(key, code, usbHid, scanCode, platformCode) {
+    // Prefer explicit USB HID usage if provided by rdev.
+    if (usbHid && Number.isInteger(usbHid) && usbHid > 0) {
+      return usbHid & 0xFF;
+    }
+
+    // Fallback: use scan/platform codes if they look like HID usages.
+    if (scanCode && Number.isInteger(scanCode) && scanCode > 0) {
+      return scanCode & 0xFF;
+    }
+    if (platformCode && Number.isInteger(platformCode) && platformCode > 0) {
+      return platformCode & 0xFF;
+    }
     // Use code for more reliable key mapping when available
     const codeMap = {
       'KeyA': 0x04, 'KeyB': 0x05, 'KeyC': 0x06, 'KeyD': 0x07,

@@ -1,0 +1,21 @@
+[package]
+name = "rdev_grabber"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", features = ["napi4"] }
+napi-derive = "2"
+rdev = { git = "https://github.com/rustdesk-org/rdev", rev = "f9b60b1dd0f3300a1b797d7a74c116683cd232c8" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+codegen-units = 1
