@@ -45,6 +45,12 @@ function updateGrabState() {
           key: payload.key,
           code: payload.code,
           usbHid: payload.usbHid,
+          modifiers: {
+            ctrl: payload.ctrlKey,
+            alt: payload.altKey,
+            shift: payload.shiftKey,
+            meta: payload.metaKey
+          },
           isInControlMode,
           hidConnected: hidManager?.connected
         });

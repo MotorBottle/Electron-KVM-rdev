@@ -425,6 +425,10 @@ class KVMClient {
 
 
     setupGlobalKeyHandler() {
+        // Track last quit key detection time for debouncing
+        this.lastQuitKeyTime = 0;
+        this.quitKeyDebounceMs = 500; // Prevent multiple triggers within 500ms
+
         // Listen for rdev key events from main process for quit key detection
         if (window.electronAPI && window.electronAPI.onGlobalKeyPressed) {
             window.electronAPI.onGlobalKeyPressed((event, data) => {
@@ -445,9 +449,29 @@ class KVMClient {
                         shiftKey: !!(data.shiftKey ?? data.shift),
                     };
 
+                    // Debug logging for quit key detection
+                    console.log('Checking quit key:', {
+                        key: syntheticEvent.key,
+                        modifiers: {
+                            ctrl: syntheticEvent.ctrlKey,
+                            alt: syntheticEvent.altKey,
+                            shift: syntheticEvent.shiftKey,
+                            meta: syntheticEvent.metaKey
+                        },
+                        required: this.quitKeyCombo
+                    });
+
                     // Check if quit key combination is pressed
                     if (this.isQuitKeyCombo(syntheticEvent)) {
-                        console.log('Quit key detected, exiting control mode');
+                        // Debounce: prevent multiple triggers in quick succession
+                        const now = Date.now();
+                        if (now - this.lastQuitKeyTime < this.quitKeyDebounceMs) {
+                            console.log('Quit key debounced, ignoring');
+                            return;
+                        }
+
+                        this.lastQuitKeyTime = now;
+                        console.log('✓ Quit key combo matched! Exiting control mode');
                         this.releaseMouseCaptureWithKeyReset();
                     }
                 }

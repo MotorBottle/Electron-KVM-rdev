@@ -22,6 +22,10 @@ static ALT_HELD: AtomicBool = AtomicBool::new(false);
 static SHIFT_HELD: AtomicBool = AtomicBool::new(false);
 static META_HELD: AtomicBool = AtomicBool::new(false);
 
+// Track phantom Ctrl/Alt (spurious KeyRelease that should have been KeyPress)
+static CTRL_PHANTOM: AtomicBool = AtomicBool::new(false);
+static ALT_PHANTOM: AtomicBool = AtomicBool::new(false);
+
 #[cfg(target_os = "windows")]
 static IS_ALT_GR_DOWN: AtomicBool = AtomicBool::new(false);
 #[cfg(target_os = "macos")]
@@ -123,7 +127,14 @@ pub fn stop_grab() -> Result<()> {
 
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 fn handle_event(tsfn: &ThreadsafeFunction<KeyEvent, ErrorStrategy::Fatal>, event: Event) -> Option<Event> {
-    eprintln!("handle_event: {:?}", event.event_type);
+    // Only log keyboard events, not mouse movements
+    match event.event_type {
+        EventType::KeyPress(_) | EventType::KeyRelease(_) => {
+            eprintln!("handle_event: {:?}", event.event_type);
+        },
+        _ => {}
+    }
+
     match event.event_type {
         EventType::KeyPress(key) => {
             eprintln!("KeyPress: {:?}", key);
@@ -148,6 +159,45 @@ fn try_handle_keyboard(
     let scan_code = event.position_code;
     #[cfg(target_os = "macos")]
     let platform_code = event.platform_code as KeyCode;
+
+    // Fix for macOS rdev bug: Detect phantom Ctrl/Alt (spurious KeyRelease when should be KeyPress)
+    if !is_press {
+        match key {
+            Key::ControlLeft | Key::ControlRight => {
+                if !CTRL_HELD.load(Ordering::SeqCst) {
+                    // Spurious KeyRelease when not held = phantom press
+                    eprintln!("⚠️  Detected phantom Ctrl KeyRelease");
+                    CTRL_PHANTOM.store(true, Ordering::SeqCst);
+                    // Don't modify CTRL_HELD - keep it as is
+                } else if CTRL_PHANTOM.load(Ordering::SeqCst) {
+                    // Real KeyRelease after phantom - clear phantom
+                    eprintln!("✓ Real Ctrl KeyRelease detected (clearing phantom)");
+                    CTRL_PHANTOM.store(false, Ordering::SeqCst);
+                }
+            }
+            Key::Alt | Key::AltGr => {
+                if !ALT_HELD.load(Ordering::SeqCst) {
+                    eprintln!("⚠️  Detected phantom Alt KeyRelease");
+                    ALT_PHANTOM.store(true, Ordering::SeqCst);
+                    // Don't modify ALT_HELD - keep it as is
+                } else if ALT_PHANTOM.load(Ordering::SeqCst) {
+                    eprintln!("✓ Real Alt KeyRelease detected (clearing phantom)");
+                    ALT_PHANTOM.store(false, Ordering::SeqCst);
+                }
+            }
+            _ => {
+                // Any non-Ctrl/Alt key release clears phantoms
+                CTRL_PHANTOM.store(false, Ordering::SeqCst);
+                ALT_PHANTOM.store(false, Ordering::SeqCst);
+            }
+        }
+    } else {
+        // On KeyPress, clear phantoms for non-Ctrl/Alt keys
+        if !matches!(key, Key::ControlLeft | Key::ControlRight | Key::Alt | Key::AltGr) {
+            CTRL_PHANTOM.store(false, Ordering::SeqCst);
+            ALT_PHANTOM.store(false, Ordering::SeqCst);
+        }
+    }
 
     update_modifiers(&key, is_press);
     // Use our own USB HID mapping - rdev's usb_hid values are often incorrect
@@ -252,9 +302,12 @@ fn update_modifiers(key: &Key, is_down: bool) {
 }
 
 fn current_modifiers() -> (bool, bool, bool, bool) {
+    // Include phantom states for Ctrl/Alt to handle macOS rdev bug
+    let ctrl = CTRL_HELD.load(Ordering::SeqCst) || CTRL_PHANTOM.load(Ordering::SeqCst);
+    let alt = ALT_HELD.load(Ordering::SeqCst) || ALT_PHANTOM.load(Ordering::SeqCst);
     (
-        CTRL_HELD.load(Ordering::SeqCst),
-        ALT_HELD.load(Ordering::SeqCst),
+        ctrl,
+        alt,
         SHIFT_HELD.load(Ordering::SeqCst),
         META_HELD.load(Ordering::SeqCst),
     )
@@ -265,6 +318,8 @@ fn reset_modifiers() {
     ALT_HELD.store(false, Ordering::SeqCst);
     SHIFT_HELD.store(false, Ordering::SeqCst);
     META_HELD.store(false, Ordering::SeqCst);
+    CTRL_PHANTOM.store(false, Ordering::SeqCst);
+    ALT_PHANTOM.store(false, Ordering::SeqCst);
     #[cfg(target_os = "windows")]
     IS_ALT_GR_DOWN.store(false, Ordering::SeqCst);
     #[cfg(target_os = "macos")]
@@ -332,7 +387,7 @@ fn key_to_usb_hid(key: &Key) -> u32 {
         Key::BackSlash => 0x31,
         Key::SemiColon => 0x33,
         Key::Quote => 0x34,
-        // Key::Grave => 0x35,  // Not available in this rdev version
+        Key::BackQuote => 0x35,  // ` and ~ key
         Key::Comma => 0x36,
         Key::Dot => 0x37,
         Key::Slash => 0x38,
@@ -384,7 +439,7 @@ fn key_to_usb_hid(key: &Key) -> u32 {
         Key::Kp8 => 0x60,
         Key::Kp9 => 0x61,
         Key::Kp0 => 0x62,
-        // Key::KpDelete => 0x63,  // Not available in this rdev version
+        Key::KpDecimal => 0x63,
 
         // Additional keys
         Key::IntlBackslash => 0x64,

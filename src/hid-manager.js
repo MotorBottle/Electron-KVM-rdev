@@ -379,7 +379,23 @@ class HIDManager {
       'PageUp': 0x4B, 'PageDown': 0x4E, 'ArrowUp': 0x52, 'ArrowDown': 0x51,
       'ArrowLeft': 0x50, 'ArrowRight': 0x4F, 'Escape': 0x29, ' ': 0x2C,
       '`': 0x35, ';': 0x33, "'": 0x34, '[': 0x2F, ']': 0x30, '\\': 0x31,
-      '-': 0x2D, '=': 0x2E, ',': 0x36, '.': 0x37, '/': 0x38
+      '-': 0x2D, '=': 0x2E, ',': 0x36, '.': 0x37, '/': 0x38,
+      // Special keys that rdev may return with different names
+      'BackQuote': 0x35, 'Grave': 0x35,  // ` key
+      'Dot': 0x37,                        // . key (rdev returns "Dot" not "Period")
+      'PrintScreen': 0x46,
+      'NumLock': 0x53,
+      'ScrollLock': 0x47,
+      'Pause': 0x48,
+      // Note: On macOS, Pause is often mapped to F15, but we want the actual Pause key (0x48)
+      // F15 will map to 0x6A normally, but if user wants Pause behavior, it should be 0x48
+      // Keypad keys
+      'KpDivide': 0x54, 'KpMultiply': 0x55, 'KpMinus': 0x56, 'KpPlus': 0x57,
+      'KpReturn': 0x58, 'Kp1': 0x59, 'Kp2': 0x5A, 'Kp3': 0x5B,
+      'Kp4': 0x5C, 'Kp5': 0x5D, 'Kp6': 0x5E, 'Kp7': 0x5F,
+      'Kp8': 0x60, 'Kp9': 0x61, 'Kp0': 0x62,
+      'KpDecimal': 0x63,  // Numpad period/delete (all variants)
+      'KpComma': 0x85  // Numpad comma (some keyboards)
     };
 
     // Numbers 1-9, 0
