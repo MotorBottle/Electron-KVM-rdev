@@ -127,3 +127,14 @@ $RECYCLE.BIN/
 *.bak
 *.backup
 *.old
+
+# Rust build artifacts
+native/target/
+native/**/target/
+
+# Native Node.js modules (compiled binaries)
+*.node
+native/**/*.node
+
+# Cargo lock file (optional - uncomment if you want to ignore it)
+# Cargo.lock
