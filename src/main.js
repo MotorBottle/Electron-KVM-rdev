@@ -269,12 +269,29 @@ app.whenReady().then(() => {
     console.log('Browser window blurred');
     updateGrabState();
   });
+
+  mainWindow.on('close', () => {
+    console.log('Window closing, stopping grab and cleaning up');
+    // Stop grab when window closes
+    if (rdevGrabber && typeof rdevGrabber.stop_grab === 'function' && rdevRunning) {
+      try {
+        rdevGrabber.stop_grab();
+        rdevRunning = false;
+        console.log('✓ rdev grab stopped on window close');
+      } catch (err) {
+        console.warn('Failed to stop rdev grabber on window close:', err);
+      }
+    }
+    // On macOS, quit the app when window closes (better UX for single-window app)
+    if (process.platform === 'darwin') {
+      app.quit();
+    }
+  });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  // Always quit when all windows are closed (including macOS)
+  app.quit();
 });
 
 app.on('before-quit', () => {
