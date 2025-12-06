@@ -3,9 +3,9 @@
 use napi::bindgen_prelude::*;
 use napi::threadsafe_function::{ErrorStrategy, ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
-use rdev::{exit_grab, Event, EventType, Key};
+use rdev::{Event, EventType, Key};
 #[cfg(any(target_os = "windows", target_os = "macos"))]
-use rdev::{grab, KeyCode};
+use rdev::{exit_grab, grab, KeyCode};
 #[cfg(target_os = "linux")]
 use rdev::{disable_grab, enable_grab, exit_grab_listen, start_grab_listen};
 #[cfg(target_os = "macos")]
