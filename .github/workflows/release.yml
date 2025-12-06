@@ -1,0 +1,264 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v0.1.0-beta, v1.0.0, etc.
+
+permissions:
+  contents: write  # Required for creating releases
+
+jobs:
+  # Build for Windows
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/rdev-grabber
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build native module
+        run: npm run build:native
+
+      - name: Build Windows installers
+        run: npm run dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: |
+            dist/*.exe
+            dist/*.zip
+          retention-days: 7
+
+  # Build for macOS
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/rdev-grabber
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build native module
+        run: npm run build:native
+
+      - name: Build macOS installers
+        run: npm run dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installers
+          path: |
+            dist/*.dmg
+            dist/*.zip
+          retention-days: 7
+
+  # Build for Linux
+  build-linux:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-dev \
+            libxtst-dev \
+            libxi-dev \
+            libxext-dev \
+            libevdev-dev \
+            libudev-dev \
+            libusb-1.0-0-dev \
+            pkg-config \
+            build-essential
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/rdev-grabber
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build native module
+        run: npm run build:native
+
+      - name: Build Linux installers
+        run: npm run dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-installers
+          path: |
+            dist/*.deb
+            dist/*.AppImage
+            dist/*.rpm
+          retention-days: 7
+
+  # Create GitHub Release and upload all artifacts
+  create-release:
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for changelog generation
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Display structure of downloaded files
+        run: ls -R release-assets
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 ${{ github.ref_name }}^ 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "First release - no previous tag found"
+            CHANGELOG="## First Release 🎉\n\nInitial beta release of KVM Client with support for Windows, macOS, and Linux."
+          else
+            echo "Generating changelog from $PREV_TAG to ${{ github.ref_name }}"
+            CHANGELOG=$(git log $PREV_TAG..${{ github.ref_name }} --pretty=format:"- %s (%h)" --no-merges)
+          fi
+
+          # Save changelog to file
+          echo -e "$CHANGELOG" > CHANGELOG.md
+
+          # Output for GitHub
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          cat CHANGELOG.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Determine if pre-release
+        id: prerelease
+        run: |
+          if [[ "${{ github.ref_name }}" =~ -(alpha|beta|rc) ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "This is a pre-release"
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "This is a stable release"
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## KVM Client ${{ github.ref_name }}
+
+            ### Downloads
+
+            **Windows:**
+            - NSIS Installer: `KVM-Client-*-win-x64.exe` or `KVM-Client-*-win-arm64.exe`
+            - Portable: `KVM-Client-*-win-x64-portable.exe` or `KVM-Client-*-win-arm64-portable.exe`
+
+            **macOS:**
+            - Universal DMG (Intel + Apple Silicon): `KVM-Client-*-mac-universal.dmg`
+            - Intel only: `KVM-Client-*-mac-x64.dmg`
+            - Apple Silicon only: `KVM-Client-*-mac-arm64.dmg`
+
+            **Linux:**
+            - Debian/Ubuntu: `KVM-Client-*-linux-x64.deb` or `KVM-Client-*-linux-arm64.deb`
+              - Includes automatic post-install script for HID permissions
+            - AppImage (portable): `KVM-Client-*-linux-x64.AppImage` or `KVM-Client-*-linux-arm64.AppImage`
+              - Run `sudo ./post-install.sh` manually for HID permissions
+
+            ### Linux Post-Install
+
+            For `.deb` packages, HID permissions are configured automatically during installation.
+
+            For AppImage, extract and run the post-install script:
+            ```bash
+            chmod +x KVM-Client-*.AppImage
+            ./KVM-Client-*.AppImage --appimage-extract
+            cd squashfs-root/resources
+            sudo ./post-install.sh
+            ```
+
+            **Important:** Log out and log back in after installation for group changes to take effect.
+
+            ---
+
+            ### Changelog
+
+            ${{ steps.changelog.outputs.changelog }}
+          draft: false
+          prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
+          files: |
+            release-assets/windows-installers/*
+            release-assets/macos-installers/*
+            release-assets/linux-installers/*
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
