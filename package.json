@@ -1,6 +1,6 @@
 {
   "name": "electron-kvm-client",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Electron KVM Client for macOS",
   "main": "src/main.js",
   "author": {
@@ -59,7 +59,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "entitlements": "assets/entitlements.mac.plist",
@@ -88,11 +91,17 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ]
     },
@@ -108,16 +117,26 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ]
     },
     "deb": {
-      "depends": ["libusb-1.0-0", "libudev1", "libc6"],
+      "depends": [
+        "libusb-1.0-0",
+        "libudev1",
+        "libc6"
+      ],
       "afterInstall": "assets/post-install.sh",
       "maintainer": "MotorBottle <motorbottt@gmail.com>",
       "synopsis": "KVM Client for USB HID devices"
