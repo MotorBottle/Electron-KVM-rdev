@@ -7,7 +7,7 @@ use rdev::{Event, EventType, Key};
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 use rdev::{exit_grab, grab, KeyCode};
 #[cfg(target_os = "linux")]
-use rdev::{disable_grab, enable_grab, exit_grab_listen, start_grab_listen};
+use rdev::{disable_grab, enable_grab, exit_grab_listen, start_grab_listen, usb_hid_keycode_from_key};
 #[cfg(target_os = "macos")]
 use rdev::set_is_main_thread;
 #[cfg(target_os = "windows")]
@@ -75,27 +75,34 @@ pub fn start_grab(callback: JsFunction) -> Result<()> {
         #[cfg(target_os = "linux")]
         {
             let _ = enable_grab();
-            if let Err(err) = start_grab_listen(move |event: Event| match event.event_type {
-                EventType::KeyPress(key) | EventType::KeyRelease(key) => {
-                    let is_press = matches!(event.event_type, EventType::KeyPress(_));
-                    update_modifiers(&key, is_press);
-                    let usb_hid = rdev::code_from_key(key)
-                        .map(|v| v as u32)
-                        .unwrap_or(event.usb_hid as u32);
-                    emit_event(
-                        &tsfn,
-                        &key,
-                        is_press,
-                        event.platform_code as u32,
-                        event.position_code,
-                        usb_hid,
-                    );
-                    None
+            eprintln!("enable_grab() called");
+            if let Err(err) = start_grab_listen(move |event: Event| {
+                eprintln!("start_grab_listen callback received event: {:?}", event.event_type);
+                match event.event_type {
+                    EventType::KeyPress(key) | EventType::KeyRelease(key) => {
+                        let is_press = matches!(event.event_type, EventType::KeyPress(_));
+                        update_modifiers(&key, is_press);
+                        // On Linux, event.usb_hid is always 0 in rdev's Event struct,
+                        // so we MUST use usb_hid_keycode_from_key to get the correct USB HID code
+                        let usb_hid = usb_hid_keycode_from_key(key)
+                            .unwrap_or(0);
+                        eprintln!("Linux key event: {:?}, usb_hid: 0x{:02X}", key, usb_hid);
+                        emit_event(
+                            &tsfn,
+                            &key,
+                            is_press,
+                            event.platform_code as u32,
+                            event.position_code,
+                            usb_hid,
+                        );
+                        None
+                    }
+                    _ => Some(event),
                 }
-                _ => Some(event),
             }) {
                 eprintln!("rdev grab error: {:?}", err);
             }
+            eprintln!("start_grab_listen returned (should not happen unless error or exit)");
         }
 
         eprintln!("rdev grab thread exiting");
