@@ -74,8 +74,12 @@ pub fn start_grab(callback: JsFunction) -> Result<()> {
 
         #[cfg(target_os = "linux")]
         {
-            let _ = enable_grab();
-            eprintln!("enable_grab() called");
+            // On Linux, start_grab_listen() is NOT blocking - it spawns background threads and returns immediately
+            // Order is CRITICAL:
+            // 1. Call start_grab_listen() FIRST to create the grab service and channels
+            // 2. Then call enable_grab() to actually start grabbing keyboard
+            // 3. Keep this thread alive by looping while RUNNING is true
+            eprintln!("Calling start_grab_listen()...");
             if let Err(err) = start_grab_listen(move |event: Event| {
                 eprintln!("start_grab_listen callback received event: {:?}", event.event_type);
                 match event.event_type {
@@ -101,14 +105,36 @@ pub fn start_grab(callback: JsFunction) -> Result<()> {
                 }
             }) {
                 eprintln!("rdev grab error: {:?}", err);
+            } else {
+                eprintln!("start_grab_listen() returned Ok - background threads started");
+                // Now that the grab service is running, enable actual keyboard grabbing
+                enable_grab();
+                eprintln!("enable_grab() called - keyboard grabbing enabled");
+
+                // Keep this thread alive while RUNNING is true
+                // The background threads spawned by start_grab_listen() need this parent thread to stay alive
+                use std::time::Duration;
+                while RUNNING.load(Ordering::SeqCst) {
+                    thread::sleep(Duration::from_millis(100));
+                }
+                eprintln!("RUNNING flag set to false, exiting grab thread");
             }
-            eprintln!("start_grab_listen returned (should not happen unless error or exit)");
         }
 
-        eprintln!("rdev grab thread exiting");
-        KEYBOARD_HOOKED.store(false, Ordering::SeqCst);
-        RUNNING.store(false, Ordering::SeqCst);
-        reset_modifiers();
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
+        {
+            eprintln!("rdev grab thread exiting");
+            KEYBOARD_HOOKED.store(false, Ordering::SeqCst);
+            RUNNING.store(false, Ordering::SeqCst);
+            reset_modifiers();
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            eprintln!("rdev grab thread exiting");
+            KEYBOARD_HOOKED.store(false, Ordering::SeqCst);
+            reset_modifiers();
+        }
     });
 
     Ok(())

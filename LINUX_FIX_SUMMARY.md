@@ -1,12 +1,12 @@
 # Linux Key Mapping and Grab Thread Fix
 
-## Issues Identified
+## Issues Identified and Fixed
 
-### 1. Key Mapping Problem
+### 1. Key Mapping Problem ✅ FIXED
 **Symptom**: Most keys mapped incorrectly, only Ctrl/Alt/Meta work correctly
 
 **Root Cause**:
-- In RustDesk's rdev fork, the `Event.usb_hid` field is hardcoded to `0` on Linux (see `/tmp/rdev-check/src/linux/grab.rs:156`)
+- In RustDesk's rdev fork, the `Event.usb_hid` field is hardcoded to `0` on Linux
 - The previous Linux implementation was calling `rdev::code_from_key()` which defaults to Linux keycodes, NOT USB HID codes
 - Need to explicitly use `rdev::usb_hid_keycode_from_key()` to get correct USB HID mappings
 
@@ -23,44 +23,44 @@ let usb_hid = rdev::code_from_key(key).map(|v| v as u32).unwrap_or(event.usb_hid
 let usb_hid = usb_hid_keycode_from_key(key).unwrap_or(0);
 ```
 
-### 2. Grab Thread Immediately Exiting
-**Symptom**: Console shows "rdev grab thread starting" then immediately "thread exiting"
+### 2. Grab Thread Immediately Exiting ✅ FIXED
+**Symptom**: Console shows "rdev grab thread starting" then immediately "thread exiting", no key events captured
 
-**Possible Causes**:
-1. **Permissions Issue**: User may not have proper evdev access even after being in `input` group
-   - Requires logout/login after adding to group
-   - Check with: `groups` (should show `input`)
-   - Verify evdev access: `ls -la /dev/input/event*`
+**Root Causes Found**:
+1. **Wrong Call Order**: Called `enable_grab()` BEFORE `start_grab_listen()`
+   - `enable_grab()` tries to send to a channel that doesn't exist yet
+   - Channel is created by `start_grab_listen()` when it calls `start_grab_service()`
+   - Result: Silent failure with error "Failed to send grab command, no sender"
 
-2. **X11 Not Running**: The `start_grab_listen()` only works on X11
-   - Ubuntu 22.04+ defaults to Wayland
-   - Check session: `echo $XDG_SESSION_TYPE` (should be `x11`)
-   - Switch to X11: Log out, click gear icon, select "Ubuntu on Xorg"
+2. **Thread Lifecycle Mismatch**:
+   - On Windows/macOS: `grab()` is a blocking call that keeps the thread alive
+   - On Linux: `start_grab_listen()` spawns background threads and returns immediately
+   - Our spawned thread was exiting immediately after `start_grab_listen()` returned
+   - Background threads became orphaned
 
-3. **KEYBOARD_ONLY Environment Variable**: May need to be set earlier
-   - Currently set at line 53 before spawning thread
-   - Thread inherits this, should be fine
-
-4. **Error in Callback**: If callback crashes, it will return immediately
-   - Added extensive debug logging to see events
-
-**Debug Logging Added**:
+**Fixes Applied**:
 ```rust
-eprintln!("enable_grab() called");
-eprintln!("start_grab_listen callback received event: {:?}", event.event_type);
-eprintln!("Linux key event: {:?}, usb_hid: 0x{:02X}", key, usb_hid);
-eprintln!("start_grab_listen returned (should not happen unless error or exit)");
+// 1. Correct call order
+start_grab_listen(callback)?;  // FIRST: Create grab service and channels
+enable_grab();                  // SECOND: Send grab command to the service
+
+// 2. Keep parent thread alive on Linux
+while RUNNING.load(Ordering::SeqCst) {
+    thread::sleep(Duration::from_millis(100));
+}
 ```
 
 ## Changes Made
 
 ### File: `native/rdev-grabber/src/lib.rs`
 
-1. **Lines 9-10**: Added `usb_hid_keycode_from_key` import for Linux
-2. **Lines 75-106**: Rewrote Linux implementation with:
+1. **Line 10**: Added `usb_hid_keycode_from_key` import for Linux
+2. **Lines 75-137**: Completely rewrote Linux implementation:
+   - Fixed call order: `start_grab_listen()` BEFORE `enable_grab()`
    - Correct USB HID code mapping using `usb_hid_keycode_from_key()`
+   - Added sleep loop to keep parent thread alive while RUNNING is true
    - Extensive debug logging
-   - Clearer comments explaining the issue
+   - Platform-specific cleanup on exit
 
 ## Testing Instructions
 
@@ -91,11 +91,13 @@ npm run build:native
 3. **Run Application and Check Console Output**:
    - Start electron-kvm
    - Click video stream to enter control mode
-   - Watch console for debug messages:
+   - Watch console for NEW debug messages:
      ```
      rdev grab thread starting
-     enable_grab() called
-     [Should stay running, NOT immediately show "thread exiting"]
+     Calling start_grab_listen()...
+     start_grab_listen() returned Ok - background threads started
+     enable_grab() called - keyboard grabbing enabled
+     [Thread should now stay alive, NOT show "thread exiting" until you exit control mode]
      ```
 
 4. **Press Keys and Check Mapping**:
