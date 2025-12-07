@@ -227,6 +227,19 @@ jobs:
             - Intel only: `KVM-Client-*-mac-x64.dmg`
             - Apple Silicon only: `KVM-Client-*-mac-arm64.dmg`
 
+            ### macOS Post-Install Instructions
+
+            1. **Install the app**: Open the DMG and drag "KVM Client.app" to your Applications folder
+            2. **Remove quarantine attribute**: Open Terminal and run:
+               ```bash
+               sudo xattr -r -d com.apple.quarantine /Applications/KVM\ Client.app
+               ```
+               Enter your password when prompted.
+            3. **Launch the app**: Open "KVM Client" from Applications
+            4. **Grant permissions**: Allow the app when macOS prompts for:
+               - Accessibility permissions (required for keyboard/mouse control)
+               - Input Monitoring permissions (required for keyboard grabbing)
+
             **Linux:**
             - Debian/Ubuntu: `KVM-Client-*-linux-x64.deb` or `KVM-Client-*-linux-arm64.deb`
               - Includes automatic post-install script for HID permissions
