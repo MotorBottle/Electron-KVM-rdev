@@ -12,9 +12,13 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
+    "prebuild": "npm run build:native",
     "build": "electron-builder",
+    "prebuild:rebuild": "npm run build:native",
     "build:rebuild": "electron-builder --config.buildDependenciesFromSource=true",
+    "predist": "npm run build:native",
     "dist": "electron-builder --publish=never",
+    "predist:rebuild": "npm run build:native",
     "dist:rebuild": "electron-builder --publish=never --config.buildDependenciesFromSource=true",
     "build:native": "cd native/rdev-grabber && npm install && npm run build"
   },
@@ -37,8 +41,15 @@
     "files": [
       "src/**/*",
       "node_modules/**/*",
+      "native/rdev-grabber/index.js",
+      "native/rdev-grabber/index.d.ts",
+      "native/rdev-grabber/package.json",
+      "native/rdev-grabber/*.node",
       "!node_modules/.cache/**/*",
       "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}"
+    ],
+    "asarUnpack": [
+      "native/rdev-grabber/*.node"
     ],
     "extraResources": [
       {

@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, Menu, globalShortcut } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const HIDManager = require('./hid-manager');
 const VideoServer = require('./video-server');
@@ -7,6 +8,44 @@ let rdevGrabber = null;
 let rdevRunning = false;
 let isInControlMode = false;
 let isWindowFocused = false;
+
+function loadRdevGrabber() {
+  const basePath = path.join(__dirname, '..', 'native', 'rdev-grabber');
+  const asarUnpackedPath = basePath.replace('app.asar', 'app.asar.unpacked');
+  const resourceNativePath = process.resourcesPath
+    ? path.join(process.resourcesPath, 'native', 'rdev-grabber')
+    : null;
+  const resourceUnpackedPath = process.resourcesPath
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'native', 'rdev-grabber')
+    : null;
+
+  const candidatePaths = [
+    basePath,
+    asarUnpackedPath,
+    resourceNativePath,
+    resourceUnpackedPath
+  ].filter(Boolean);
+
+  let lastError = null;
+  for (const candidate of candidatePaths) {
+    try {
+      if (!fs.existsSync(candidate)) {
+        continue;
+      }
+      const grabber = require(candidate);
+      console.log('rdev-grabber loaded from', candidate);
+      return grabber;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  console.warn(
+    'rdev-grabber native module not loaded; system hotkeys will not be blocked. Build it via npm run build:native.',
+    lastError ? `Error: ${lastError.message}` : ''
+  );
+  return null;
+}
 
 // Start/stop rdev grab based on focus + control state
 function updateGrabState() {
@@ -102,13 +141,7 @@ function updateGrabState() {
   }
 }
 
-try {
-  const grabberPath = path.join(__dirname, '..', 'native', 'rdev-grabber');
-  rdevGrabber = require(grabberPath);
-  console.log('rdev-grabber loaded from', grabberPath);
-} catch (e) {
-  console.warn('rdev-grabber native module not loaded; system hotkeys will not be blocked. Build it via npm run build:native. Error:', e.message);
-}
+rdevGrabber = loadRdevGrabber();
 
 // Check macOS permissions (following RustDesk's approach)
 function checkMacOSPermissions() {
