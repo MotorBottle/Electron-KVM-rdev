@@ -66,6 +66,7 @@
       }
     ],
     "mac": {
+      "icon": "icon.icns",
       "category": "public.app-category.utilities",
       "target": [
         {
@@ -99,6 +100,7 @@
       ]
     },
     "win": {
+      "icon": "icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -124,6 +126,7 @@
       "artifactName": "${productName}-${version}-portable.${ext}"
     },
     "linux": {
+      "icon": "icon.png",
       "category": "Utility",
       "target": [
         {
