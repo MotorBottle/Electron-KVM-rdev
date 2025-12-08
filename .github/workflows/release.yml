@@ -244,19 +244,52 @@ jobs:
             - Debian/Ubuntu: `KVM-Client-*-linux-x64.deb` or `KVM-Client-*-linux-arm64.deb`
               - Includes automatic post-install script for HID permissions
             - AppImage (portable): `KVM-Client-*-linux-x64.AppImage` or `KVM-Client-*-linux-arm64.AppImage`
-              - Run `sudo ./post-install.sh` manually for HID permissions
+              - Requires fuse2 (see installation instructions below)
 
-            ### Linux Post-Install
+            ### Linux Installation Instructions
 
-            For `.deb` packages, HID permissions are configured automatically during installation.
-
-            For AppImage, extract and run the post-install script:
+            **For .deb packages (Recommended):**
             ```bash
-            chmod +x KVM-Client-*.AppImage
-            ./KVM-Client-*.AppImage --appimage-extract
-            cd squashfs-root/resources
-            sudo ./post-install.sh
+            # Ubuntu 22.04+
+            sudo apt install libfuse2
+            sudo dpkg -i KVM-Client-*-linux-x64.deb
+
+            # Ubuntu < 22.04
+            sudo apt-get install fuse libfuse2
+            sudo dpkg -i KVM-Client-*-linux-x64.deb
             ```
+            HID permissions are configured automatically during installation.
+
+            **For AppImage:**
+
+            1. Install fuse2 dependency:
+               ```bash
+               # Ubuntu 22.04+
+               sudo apt install libfuse2
+
+               # Ubuntu < 22.04
+               sudo apt-get install fuse libfuse2
+               ```
+
+            2. Make executable and run:
+               ```bash
+               chmod +x KVM-Client-*.AppImage
+               ./KVM-Client-*.AppImage
+               ```
+
+               **Note:** If the AppImage fails to launch due to the version number in the filename, rename it to something simpler:
+               ```bash
+               mv KVM-Client-*-linux-x64.AppImage KVM.AppImage
+               chmod +x KVM.AppImage
+               ./KVM.AppImage
+               ```
+
+            3. Configure HID permissions (required for keyboard/mouse control):
+               ```bash
+               ./KVM-Client-*.AppImage --appimage-extract
+               cd squashfs-root/resources
+               sudo ./post-install.sh
+               ```
 
             **Important:** Log out and log back in after installation for group changes to take effect.
 
