@@ -126,8 +126,15 @@
       "artifactName": "${productName}-${version}-portable.${ext}"
     },
     "linux": {
-      "icon": "icon.png",
+      "icon": "build/icons",
       "category": "Utility",
+      "desktop": {
+        "Name": "KVM Client",
+        "Comment": "USB KVM Control Software",
+        "Type": "Application",
+        "Categories": "Utility;System;",
+        "StartupNotify": "true"
+      },
       "target": [
         {
           "target": "AppImage",

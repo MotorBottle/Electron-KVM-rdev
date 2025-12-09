@@ -94,7 +94,8 @@ dist/
 # Electron build outputs
 out/
 dist_electron/
-build/
+build/*
+!build/icons/
 
 # Temporary folders
 tmp/
