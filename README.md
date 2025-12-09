@@ -12,6 +12,12 @@ USB KVM Client 是一个基于 Electron 构建的跨平台 USB KVM 客户端。�
 原始项目：
 - [Jackadminx/KVM-Card-Mini](https://github.com/Jackadminx/KVM-Card-Mini)
 
+![alt text](image.png)
+
+![alt text](image-1.png)
+
+![alt text](image-2.png)
+
 **主要区别：**
 - **跨平台**：支持 macOS (x64/ARM64)、Windows (x64/ARM64) 和 Linux (x64/ARM64)
 - **现代化架构**：使用 Electron + Rust 原生模块，而非 Python/PySide

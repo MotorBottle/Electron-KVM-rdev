@@ -12,6 +12,12 @@ This project is an alternative host client for:
 Original Project:
 - [Jackadminx/KVM-Card-Mini](https://github.com/Jackadminx/KVM-Card-Mini)
 
+![alt text](image.png)
+
+![alt text](image-1.png)
+
+![alt text](image-2.png)
+
 **Key Differences:**
 - **Cross-platform**: Supports macOS (x64/ARM64), Windows (x64/ARM64), and Linux (x64/ARM64)
 - **Modern Architecture**: Built with Electron + Rust native modules instead of Python/PySide
