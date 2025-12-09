@@ -7,7 +7,9 @@
 USB KVM Client is a cross-platform software KVM (Keyboard-Video-Mouse) client built with Electron. It enables you to control a remote computer through a USB hardware KVM device (based on CH582F(or similar MCU) + MS2130 capture card).
 
 This project is an alternative host client for:
-- [ElluIFX/KVM-Card-Mini-PySide6](https://github.com/ElluIFX/KVM-Card-Mini-PySide6)
+- [osrbot/osrbot_client](https://github.com/osrbot/osrbot_client)
+
+Original Project:
 - [Jackadminx/KVM-Card-Mini](https://github.com/Jackadminx/KVM-Card-Mini)
 
 **Key Differences:**

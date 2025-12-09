@@ -4,16 +4,18 @@
 
 ## 这是什么？
 
-USB KVM Client 是一个基于 Electron 构建的跨平台软件 KVM（键盘-视频-鼠标）客户端。它允许你通过 USB 硬件 KVM 设备（基于 单片机 + 采集卡）来控制远程计算机。
+USB KVM Client 是一个基于 Electron 构建的跨平台 USB KVM 客户端。它允许你通过 USB 硬件 KVM 设备（基于 单片机 + 采集卡）来控制远程计算机。
 
-本项目是以下项目的替代主机客户端：
-- [ElluIFX/KVM-Card-Mini-PySide6](https://github.com/ElluIFX/KVM-Card-Mini-PySide6)
+本项目是以下项目的替代Host客户端：
+- [osrbot/osrbot_client](https://github.com/osrbot/osrbot_client)
+
+原始项目：
 - [Jackadminx/KVM-Card-Mini](https://github.com/Jackadminx/KVM-Card-Mini)
 
 **主要区别：**
 - **跨平台**：支持 macOS (x64/ARM64)、Windows (x64/ARM64) 和 Linux (x64/ARM64)
 - **现代化架构**：使用 Electron + Rust 原生模块，而非 Python/PySide
-- **增强的键盘捕获**：使用平台特定的底层键盘钩子（灵感来自 RustDesk），而非简单的键盘锁定
+- **增强的键盘捕获**：使用平台特定的底层键盘钩子（灵感来自 RustDesk），而非Electron自带的Keyboardlock（自带的不够底层）
 - **更好的性能**：直接 WebRTC 视频捕获，优化的 HID 协议实现
 
 ## 工作原理
