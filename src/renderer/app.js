@@ -1237,7 +1237,8 @@ class KVMClient {
                     await window.electronAPI.sendMouseEvent({
                         type: 'move',
                         x: deltaX,
-                        y: deltaY
+                        y: deltaY,
+                        buttonsPressed: this.mouseButtonsPressed // Include button state for dragging
                     });
                 } catch (error) {
                     console.error('Error sending mouse move:', error);
@@ -1312,34 +1313,46 @@ class KVMClient {
         if (!this.hidConnected) return;
 
         const buttonMask = this.getHIDButtonMask(event.button);
-        
+
         if (event.type === 'mousedown') {
             this.mouseButtonsPressed |= buttonMask;
         } else if (event.type === 'mouseup') {
             this.mouseButtonsPressed &= ~buttonMask;
         }
-        
-        // Calculate current mouse position for the button event
-        const videoRect = this.videoElement.getBoundingClientRect();
-        const relativeX = event.clientX - videoRect.left;
-        const relativeY = event.clientY - videoRect.top;
-        const clampedX = Math.max(0, Math.min(relativeX, videoRect.width));
-        const clampedY = Math.max(0, Math.min(relativeY, videoRect.height));
-        const x = Math.round((clampedX / videoRect.width) * 0x7FFF);
-        const y = Math.round((clampedY / videoRect.height) * 0x7FFF);
-        
+
         try {
-            await window.electronAPI.sendMouseEvent({
-                type: event.type === 'mousedown' ? 'mousedown' : 'mouseup',
-                button: event.button,
-                buttonsPressed: this.mouseButtonsPressed,
-                x: x,  // Include current position
-                y: y   // Include current position
-            });
+            // In relative mode, only send button press/release without position
+            // In absolute mode, include the click position
+            if (this.mouseMode === 'relative') {
+                // Relative mode: Send only button state, no position
+                await window.electronAPI.sendMouseEvent({
+                    type: event.type === 'mousedown' ? 'mousedown' : 'mouseup',
+                    button: event.button,
+                    buttonsPressed: this.mouseButtonsPressed
+                    // No x, y coordinates in relative mode
+                });
+            } else {
+                // Absolute mode: Calculate and send current mouse position
+                const videoRect = this.videoElement.getBoundingClientRect();
+                const relativeX = event.clientX - videoRect.left;
+                const relativeY = event.clientY - videoRect.top;
+                const clampedX = Math.max(0, Math.min(relativeX, videoRect.width));
+                const clampedY = Math.max(0, Math.min(relativeY, videoRect.height));
+                const x = Math.round((clampedX / videoRect.width) * 0x7FFF);
+                const y = Math.round((clampedY / videoRect.height) * 0x7FFF);
+
+                await window.electronAPI.sendMouseEvent({
+                    type: event.type === 'mousedown' ? 'mousedown' : 'mouseup',
+                    button: event.button,
+                    buttonsPressed: this.mouseButtonsPressed,
+                    x: x,  // Include current position in absolute mode
+                    y: y
+                });
+            }
         } catch (error) {
             console.error('Error sending mouse event:', error);
         }
-        
+
         event.preventDefault();
     }
 

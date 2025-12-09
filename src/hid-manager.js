@@ -139,7 +139,12 @@ class HIDManager {
           const deltaY = Math.max(-127, Math.min(127, data.y));
           const deltaX_byte = deltaX < 0 ? (256 + deltaX) : deltaX;
           const deltaY_byte = deltaY < 0 ? (256 + deltaY) : deltaY;
-          buffer = [7, 0, 0, deltaX_byte, deltaY_byte, 0, 0, 0, 0];
+          // Include button state for dragging support in relative mode
+          const moveButtonState = data.buttonsPressed !== undefined ? data.buttonsPressed : 0;
+          if (data.buttonsPressed !== undefined) {
+            this.currentButtonState = data.buttonsPressed;
+          }
+          buffer = [7, 0, moveButtonState, deltaX_byte, deltaY_byte, 0, 0, 0, 0];
           break;
         case 'abs':
           const x_scaled = Math.max(0, Math.min(0x7FFF, data.x));
@@ -155,20 +160,30 @@ class HIDManager {
           break;
         case 'mousedown':
         case 'mouseup':
-          const click_x = data.x !== undefined ? Math.max(0, Math.min(0x7FFF, data.x)) : (this.lastX || 0);
-          const click_y = data.y !== undefined ? Math.max(0, Math.min(0x7FFF, data.y)) : (this.lastY || 0);
-          if (data.x !== undefined) this.lastX = click_x;
-          if (data.y !== undefined) this.lastY = click_y;
-          const click_x_int = Math.round(click_x);
-          const click_y_int = Math.round(click_y);
-          const click_x_low = click_x_int & 0xFF;
-          const click_x_high = (click_x_int >> 8) & 0x7F;
-          const click_y_low = click_y_int & 0xFF;
-          const click_y_high = (click_y_int >> 8) & 0x7F;
           const clickButtonState = data.buttonsPressed !== undefined ? data.buttonsPressed :
             (data.type === 'mousedown' ? this.getMouseButtonCode(data.button) : 0);
           this.currentButtonState = clickButtonState;
-          buffer = [2, 0, clickButtonState, click_x_low, click_x_high, click_y_low, click_y_high, 0, 0];
+
+          // If position is provided (absolute mode), send absolute positioning
+          // If no position (relative mode), send relative positioning with no movement
+          if (data.x !== undefined && data.y !== undefined) {
+            // Absolute mode: Send click with position
+            const click_x = Math.max(0, Math.min(0x7FFF, data.x));
+            const click_y = Math.max(0, Math.min(0x7FFF, data.y));
+            this.lastX = click_x;
+            this.lastY = click_y;
+            const click_x_int = Math.round(click_x);
+            const click_y_int = Math.round(click_y);
+            const click_x_low = click_x_int & 0xFF;
+            const click_x_high = (click_x_int >> 8) & 0x7F;
+            const click_y_low = click_y_int & 0xFF;
+            const click_y_high = (click_y_int >> 8) & 0x7F;
+            buffer = [2, 0, clickButtonState, click_x_low, click_x_high, click_y_low, click_y_high, 0, 0];
+          } else {
+            // Relative mode: Send click with no movement (delta = 0)
+            // Use relative protocol (report ID 7) with zero deltas
+            buffer = [7, 0, clickButtonState, 0, 0, 0, 0, 0, 0];
+          }
           break;
         case 'wheel':
           const wheel_x = data.x !== undefined ? Math.max(0, Math.min(0x7FFF, data.x)) : (this.lastX || 0);
