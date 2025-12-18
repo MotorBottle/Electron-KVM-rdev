@@ -1,0 +1,12 @@
+{
+  "compatibleDevices": [
+    {
+      "vendorId": "0x413D",
+      "productId": "0x2107",
+      "description": "KVM Control Interface (OSRBOT, KVM Card Mini, CH582F-based devices)"
+    }
+  ],
+  "info": {
+    "howToAdd": "Add new devices with their VID, PID, and description. Example: { \"vendorId\": \"0x1234\", \"productId\": \"0x5678\", \"description\": \"My KVM Device\" }"
+  }
+}

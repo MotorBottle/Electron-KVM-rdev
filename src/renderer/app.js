@@ -13,18 +13,30 @@ class KVMClient {
         this.reverseScroll = false; // Natural scrolling direction
         this.isFullscreen = false; // Track fullscreen state
         this.quitKeyCombo = { ctrlKey: true, altKey: true, shiftKey: false, metaKey: false, key: null, code: null }; // Default quit combination
-        
+
+        // Compatible KVM device list for auto-detection
+        // Add new compatible devices here with their VID/PID and description
+        this.COMPATIBLE_DEVICES = [
+            {
+                vendorId: 0x413D,
+                productId: 0x2107,
+                description: 'KVM Control Interface (OSRBOT, KVM Card Mini, CH582F-based devices)'
+            }
+            // Add more devices here:
+            // { vendorId: 0x1234, productId: 0x5678, description: 'My Custom KVM Device' }
+        ];
+
         // Disable WebRTC's default STUN servers to prevent external network connections
         this.disableWebRTCExternalConnections();
-        
+
         // Load saved settings
         this.loadSettings();
-        
+
         // Common resolutions (from HttpVideo.html)
         this.COMMON_RESOLUTIONS = [
             [1920, 1080], [1280, 720], [720, 480], [640, 480]
         ];
-        
+
         this.initializeElements();
         this.bindEvents();
         this.setupGlobalKeyHandler();  // Setup rdev global key handler for quit key
@@ -919,37 +931,50 @@ class KVMClient {
         try {
             const devices = await window.electronAPI.getHIDDevices();
             this.hidDevicesSelect.innerHTML = '<option value="">Select HID Device</option>';
-            
-            let osrbotDevice = null;
-            
+
+            let compatibleDevice = null;
+
             devices.forEach(device => {
                 const option = document.createElement('option');
                 option.value = device.path;
-                option.textContent = `${device.manufacturer || 'Unknown'} ${device.product || 'Device'} (${device.path})`;
+                // Show device info with VID/PID for better identification
+                const vidPid = `VID:0x${(device.vendorId || 0).toString(16).padStart(4, '0')} PID:0x${(device.productId || 0).toString(16).padStart(4, '0')}`;
+                option.textContent = `${device.product || 'Unknown Device'} (${vidPid})`;
                 this.hidDevicesSelect.appendChild(option);
-                
-                // Look for OSRBOT KVM device for auto-connection
-                if (device.product && device.product.includes('OSRBOT') && device.product.includes('KVM')) {
-                    osrbotDevice = device;
+
+                // Check if device matches any in the compatible devices list
+                const matchingConfig = this.COMPATIBLE_DEVICES.find(config =>
+                    config.vendorId === device.vendorId &&
+                    config.productId === device.productId
+                );
+
+                if (matchingConfig && !compatibleDevice) {
+                    compatibleDevice = device;
+                    console.log('Compatible KVM device found:', {
+                        product: device.product || 'Unknown',
+                        description: matchingConfig.description,
+                        device: device
+                    });
                 }
             });
-            
-            // Auto-connect to OSRBOT KVM device if found and not already connected
-            if (osrbotDevice && !this.hidConnected) {
-                console.log('OSRBOT KVM device found, auto-connecting...', osrbotDevice);
-                this.hidDevicesSelect.value = osrbotDevice.path;
-                
+
+            // Auto-connect to compatible KVM device if found and not already connected
+            if (compatibleDevice && !this.hidConnected) {
+                const deviceName = compatibleDevice.product || 'KVM Device';
+                console.log(`Compatible KVM device found (${deviceName}), auto-connecting...`, compatibleDevice);
+                this.hidDevicesSelect.value = compatibleDevice.path;
+
                 // Show user feedback about auto-connection attempt
-                this.showAutoConnectNotification('OSRBOT KVM device detected, connecting...');
-                
+                this.showAutoConnectNotification(`${deviceName} detected, connecting...`);
+
                 try {
                     await this.connectHID();
                     if (this.hidConnected) {
-                        this.showAutoConnectNotification('✅ OSRBOT KVM auto-connected successfully!', 'success');
+                        this.showAutoConnectNotification(`✅ ${deviceName} connected successfully!`, 'success');
                     }
                 } catch (error) {
                     console.error('Auto-connect failed:', error);
-                    this.showAutoConnectNotification('❌ OSRBOT KVM auto-connect failed', 'error');
+                    this.showAutoConnectNotification(`❌ ${deviceName} connection failed`, 'error');
                 }
             }
         } catch (error) {

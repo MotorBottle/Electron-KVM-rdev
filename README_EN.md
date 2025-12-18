@@ -27,7 +27,7 @@ Original Project:
 ## How It Works
 
 1. **Video Capture**: Captures video from USB video capture device (MS2130 or compatible) using WebRTC API
-2. **HID Communication**: Sends keyboard/mouse events to the remote computer via USB HID protocol through your STM32-based KVM hardware
+2. **HID Communication**: Sends keyboard/mouse events to the remote computer via USB HID protocol through your CH582F-based KVM hardware
 3. **Keyboard Capture**: Uses native Rust module with rdev library for system-level keyboard capture (blocks OS shortcuts when in control mode)
 4. **Two Mouse Modes**:
    - **Absolute Mode**: Click-to-position (direct coordinate mapping)
@@ -129,21 +129,41 @@ chmod +x KVM-Client-*.AppImage
 
 ### Hardware Compatibility
 
-**Important:** This application is currently configured for a specific HID device:
-- **Vendor ID**: `0x413D`
-- **Product ID**: `0x2107`
-- **Usage Page**: `0xFF00`
+This client supports multiple compatible KVM devices through USB HID interface.
 
-If you have your own STM32-based KVM hardware with different VID/PID, you need to modify the device filter in `src/hid-manager.js`:
+**Currently Supported Devices:**
+- OSRBOT KVM devices
+- KVM Card Mini (CH582F-based)
+- Other compatible KVM hardware (VID: 0x413D, PID: 0x2107)
+
+**Adding New Compatible Devices:**
+
+If you have your own KVM hardware with different VID/PID, you can easily add support:
+
+1. Edit `src/renderer/app.js` and add your device to the `COMPATIBLE_DEVICES` array:
 
 ```javascript
-// Find and modify these values in hid-manager.js
-const DEVICE_FILTER = {
-  vendorId: 0x413D,   // Your device's VID
-  productId: 0x2107,  // Your device's PID
-  usagePage: 0xFF00   // Your device's usage page
-};
+this.COMPATIBLE_DEVICES = [
+    {
+        vendorId: 0x413D,
+        productId: 0x2107,
+        description: 'KVM Control Interface (OSRBOT, KVM Card Mini, etc.)'
+    },
+    // Add your device:
+    {
+        vendorId: 0x1234,  // Your device's Vendor ID
+        productId: 0x5678,  // Your device's Product ID
+        description: 'My Custom KVM Device'
+    }
+];
 ```
+
+2. Restart the app and your device will be automatically detected and connected
+
+**For details:** See [Compatible Devices Documentation](COMPATIBLE_DEVICES.md) for:
+- How to find your device's VID/PID
+- Step-by-step instructions for adding new devices
+- Protocol requirements and troubleshooting
 
 ## Building from Source
 

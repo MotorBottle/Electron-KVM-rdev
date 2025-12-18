@@ -4,7 +4,7 @@
 
 ## 这是什么？
 
-USB KVM Client 是一个基于 Electron 构建的跨平台 USB KVM 客户端。它允许你通过 USB 硬件 KVM 设备（基于 单片机 + 采集卡）来控制远程计算机。
+USB KVM Client 是一个基于 Electron 构建的跨平台 USB KVM 客户端。它允许你通过 USB 硬件 KVM 设备（基于 单片机(当前是ch582f) + 采集卡（当前是ms2130））来控制远程计算机。
 
 本项目是以下项目的替代Host客户端：
 - [osrbot/osrbot_client](https://github.com/osrbot/osrbot_client)
@@ -27,7 +27,7 @@ USB KVM Client 是一个基于 Electron 构建的跨平台 USB KVM 客户端。�
 ## 工作原理
 
 1. **视频捕获**：通过 WebRTC API 从 USB 视频采集设备（MS2130 或兼容设备）捕获视频
-2. **HID 通信**：通过基于 STM32 的 KVM 硬件，使用 USB HID 协议向远程计算机发送键盘/鼠标事件
+2. **HID 通信**：通过基于 CH582F 的 KVM 硬件，使用 USB HID 协议向远程计算机发送键盘/鼠标事件
 3. **键盘捕获**：使用基于 rdev 库的原生 Rust 模块进行系统级键盘捕获（在控制模式下阻止操作系统快捷键）
 4. **两种鼠标模式**：
    - **绝对模式**：点击定位（直接坐标映射）
@@ -129,21 +129,41 @@ chmod +x KVM-Client-*.AppImage
 
 ### 硬件兼容性
 
-**重要提示：**此应用程序当前配置为特定的 HID 设备：
-- **供应商 ID**：`0x413D`
-- **产品 ID**：`0x2107`
-- **用途页**：`0xFF00`
+本客户端支持多种兼容的 KVM 设备，通过 USB HID 接口进行通信。
 
-如果你有自己的基于 STM32 的 KVM 硬件，使用不同的 VID/PID，则需要修改 `src/hid-manager.js` 中的设备过滤器：
+**当前支持的设备：**
+- OSRBOT KVM 设备
+- KVM Card Mini (基于 CH582F)
+- 其他兼容的 KVM 硬件（VID: 0x413D, PID: 0x2107）
+
+**添加新的兼容设备：**
+
+如果你有自己的 KVM 硬件使用不同的 VID/PID，可以轻松添加支持：
+
+1. 编辑 `src/renderer/app.js`，在 `COMPATIBLE_DEVICES` 数组中添加你的设备：
 
 ```javascript
-// 在 hid-manager.js 中查找并修改这些值
-const DEVICE_FILTER = {
-  vendorId: 0x413D,   // 你的设备的 VID
-  productId: 0x2107,  // 你的设备的 PID
-  usagePage: 0xFF00   // 你的设备的用途页
-};
+this.COMPATIBLE_DEVICES = [
+    {
+        vendorId: 0x413D,
+        productId: 0x2107,
+        description: 'KVM 控制接口 (OSRBOT, KVM Card Mini 等)'
+    },
+    // 添加你的设备：
+    {
+        vendorId: 0x1234,  // 你的设备的供应商 ID
+        productId: 0x5678,  // 你的设备的产品 ID
+        description: '我的自定义 KVM 设备'
+    }
+];
 ```
+
+2. 重启应用，你的设备将自动被识别和连接
+
+**详细说明：**查看 [兼容设备文档](COMPATIBLE_DEVICES_CN.md) 了解：
+- 如何查找设备的 VID/PID
+- 添加新设备的详细步骤
+- 协议要求和故障排除
 
 ## 从源代码构建
 
