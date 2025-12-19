@@ -139,3 +139,7 @@ native/**/*.node
 
 # Cargo lock file (optional - uncomment if you want to ignore it)
 # Cargo.lock
+
+# Claude produced docs
+Claude_made_docs
+Claude_made_docs/
