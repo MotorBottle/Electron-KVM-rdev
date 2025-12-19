@@ -1,6 +1,6 @@
 {
   "name": "electron-kvm-client",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Electron KVM Client for macOS",
   "main": "src/main.js",
   "author": {
