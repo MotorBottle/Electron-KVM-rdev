@@ -165,6 +165,13 @@ this.COMPATIBLE_DEVICES = [
 - Step-by-step instructions for adding new devices
 - Protocol requirements and troubleshooting
 
+## CH582F Firmware Update (rough steps)
+
+- Source: `HID_CompliantDev/src/Main.c` (`USB_SWAP_MODE` lets you swap the two USB port roles; when set to 1, USB2 is the controller/host-side link and USB1 is the keyboard/mouse to the target PC).
+- Build: Open `HID_CompliantDev/HID_CompliantDev.wvproj` in MounRiver Studio, build, and grab the generated `Objects/HID_CompliantDev.bin` (or hex).
+- Flash: Use WCHISPTool or WCH-LinkUtility, put the CH582F into boot mode (hold BOOT while powering/resetting), select the generated firmware, flash, then power-cycle.
+- Backup first: If a working firmware is on the board, read it out and keep a copy before overwriting.
+
 ## Building from Source
 
 ```bash

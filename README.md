@@ -165,6 +165,13 @@ this.COMPATIBLE_DEVICES = [
 - 添加新设备的详细步骤
 - 协议要求和故障排除
 
+## CH582F 固件更新（简要）
+
+- 代码位置：`HID_CompliantDev/src/Main.c`（`USB_SWAP_MODE` 允许互换两个 USB 端口的主从关系，设置为1时USB2连接到主控电脑，USB1作为键鼠连接被控端）。
+- 构建：使用 MounRiver Studio 打开 `HID_CompliantDev/HID_CompliantDev.wvproj`，选择编译得到 `Objects/HID_CompliantDev.bin`（或对应 hex）。
+- 刷写：使用 WCHISPTool/WCH-LinkUtility，将 CH582F 置于 Boot 模式（按住 BOOT 键再上电/复位），选择生成的固件并写入，完成后断电重启。
+- 备份：如已在板上有可用固件，建议先在工具里读出并保存一份备份再覆盖。
+
 ## 从源代码构建
 
 ```bash
