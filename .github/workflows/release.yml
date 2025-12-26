@@ -292,6 +292,7 @@ jobs:
                ```
 
             **Important:** Log out and log back in after installation for group changes to take effect.
+            **Important2:** Wayland is currently not well-supported by rdev so you need to switch to X11 (for example from ubuntu login page) if app doesn't work well.
 
             ---
 
