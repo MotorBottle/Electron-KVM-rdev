@@ -9,7 +9,7 @@ USB KVM Client 是一个基于 Electron 构建的跨平台 USB KVM 客户端。�
 本项目是以下项目的替代Host客户端（CH582F部分代码来自这）：
 - [osrbot/osrbot_client](https://github.com/osrbot/osrbot_client)
 
-原始项目(CH582F刷写步骤可参考，但此项目固件不支持相对移动鼠标模式)：
+原始项目(CH582F刷写步骤可参考，但原始项目固件不支持相对移动鼠标模式)：
 - [Jackadminx/KVM-Card-Mini](https://github.com/Jackadminx/KVM-Card-Mini)
 
 ![alt text](image.png)

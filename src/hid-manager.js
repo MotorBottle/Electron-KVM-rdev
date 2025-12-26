@@ -186,22 +186,31 @@ class HIDManager {
           }
           break;
         case 'wheel':
-          const wheel_x = data.x !== undefined ? Math.max(0, Math.min(0x7FFF, data.x)) : (this.lastX || 0);
-          const wheel_y = data.y !== undefined ? Math.max(0, Math.min(0x7FFF, data.y)) : (this.lastY || 0);
-          if (data.x !== undefined) this.lastX = wheel_x;
-          if (data.y !== undefined) this.lastY = wheel_y;
-          const wheel_x_int = Math.round(wheel_x);
-          const wheel_y_int = Math.round(wheel_y);
-          const wheel_x_low = wheel_x_int & 0xFF;
-          const wheel_x_high = (wheel_x_int >> 8) & 0x7F;
-          const wheel_y_low = wheel_y_int & 0xFF;
-          const wheel_y_high = (wheel_y_int >> 8) & 0x7F;
           const wheelDelta = Math.max(-127, Math.min(127, Math.round(data.delta / 120)));
           const wheelButtonState = data.buttonsPressed !== undefined ? data.buttonsPressed : this.currentButtonState;
           if (data.buttonsPressed !== undefined) {
             this.currentButtonState = data.buttonsPressed;
           }
-          buffer = [2, 0, wheelButtonState, wheel_x_low, wheel_x_high, wheel_y_low, wheel_y_high, wheelDelta, 0];
+
+          // Check if position is provided (absolute mode) or not (relative mode)
+          if (data.x !== undefined && data.y !== undefined) {
+            // Absolute mode: Send wheel with absolute position
+            const wheel_x = Math.max(0, Math.min(0x7FFF, data.x));
+            const wheel_y = Math.max(0, Math.min(0x7FFF, data.y));
+            this.lastX = wheel_x;
+            this.lastY = wheel_y;
+            const wheel_x_int = Math.round(wheel_x);
+            const wheel_y_int = Math.round(wheel_y);
+            const wheel_x_low = wheel_x_int & 0xFF;
+            const wheel_x_high = (wheel_x_int >> 8) & 0x7F;
+            const wheel_y_low = wheel_y_int & 0xFF;
+            const wheel_y_high = (wheel_y_int >> 8) & 0x7F;
+            buffer = [2, 0, wheelButtonState, wheel_x_low, wheel_x_high, wheel_y_low, wheel_y_high, wheelDelta, 0];
+          } else {
+            // Relative mode: Send wheel with zero movement (just wheel delta, no cursor movement)
+            // Use command 7 (relative mode) with format: [buttons, deltaX, deltaY, wheel] (4 bytes)
+            buffer = [7, 0, wheelButtonState, 0, 0, wheelDelta, 0, 0, 0];
+          }
           break;
         case 'reset':
           this.currentButtonState = 0;

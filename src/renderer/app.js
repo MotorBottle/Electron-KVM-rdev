@@ -1384,38 +1384,58 @@ class KVMClient {
     async handleMouseWheel(event) {
         if (!this.hidConnected) return;
 
-        // Calculate current mouse position for the wheel event
-        const videoRect = this.videoElement.getBoundingClientRect();
-        const relativeX = event.clientX - videoRect.left;
-        const relativeY = event.clientY - videoRect.top;
-        const clampedX = Math.max(0, Math.min(relativeX, videoRect.width));
-        const clampedY = Math.max(0, Math.min(relativeY, videoRect.height));
-        const x = Math.round((clampedX / videoRect.width) * 0x7FFF);
-        const y = Math.round((clampedY / videoRect.height) * 0x7FFF);
-
         try {
             // Apply scroll direction preference
             const scrollMultiplier = this.reverseScroll ? -1 : 1;
-            
-            // Send wheel events for both X and Y scroll
-            if (Math.abs(event.deltaY) > 0) {
-                await window.electronAPI.sendMouseEvent({
-                    type: 'wheel',
-                    delta: event.deltaY * scrollMultiplier,
-                    x: x,  // Include current position
-                    y: y,   // Include current position
-                    buttonsPressed: this.mouseButtonsPressed // Preserve button state during scroll
-                });
-            }
-            if (Math.abs(event.deltaX) > 0) {
-                // Some systems support horizontal scrolling
-                await window.electronAPI.sendMouseEvent({
-                    type: 'wheel',
-                    delta: event.deltaX * scrollMultiplier,
-                    x: x,  // Include current position
-                    y: y,   // Include current position
-                    buttonsPressed: this.mouseButtonsPressed // Preserve button state during scroll
-                });
+
+            if (this.mouseMode === 'absolute') {
+                // Absolute mode: Include current mouse position with wheel event
+                const videoRect = this.videoElement.getBoundingClientRect();
+                const relativeX = event.clientX - videoRect.left;
+                const relativeY = event.clientY - videoRect.top;
+                const clampedX = Math.max(0, Math.min(relativeX, videoRect.width));
+                const clampedY = Math.max(0, Math.min(relativeY, videoRect.height));
+                const x = Math.round((clampedX / videoRect.width) * 0x7FFF);
+                const y = Math.round((clampedY / videoRect.height) * 0x7FFF);
+
+                // Send wheel events for both X and Y scroll
+                if (Math.abs(event.deltaY) > 0) {
+                    await window.electronAPI.sendMouseEvent({
+                        type: 'wheel',
+                        delta: event.deltaY * scrollMultiplier,
+                        x: x,
+                        y: y,
+                        buttonsPressed: this.mouseButtonsPressed
+                    });
+                }
+                if (Math.abs(event.deltaX) > 0) {
+                    await window.electronAPI.sendMouseEvent({
+                        type: 'wheel',
+                        delta: event.deltaX * scrollMultiplier,
+                        x: x,
+                        y: y,
+                        buttonsPressed: this.mouseButtonsPressed
+                    });
+                }
+            } else {
+                // Relative mode: Send wheel delta without position (use zeros for relative deltas)
+                // The HID backend will handle this as a relative mode wheel event
+                if (Math.abs(event.deltaY) > 0) {
+                    await window.electronAPI.sendMouseEvent({
+                        type: 'wheel',
+                        delta: event.deltaY * scrollMultiplier,
+                        buttonsPressed: this.mouseButtonsPressed
+                        // No x, y in relative mode - backend uses lastX/lastY or zeros
+                    });
+                }
+                if (Math.abs(event.deltaX) > 0) {
+                    await window.electronAPI.sendMouseEvent({
+                        type: 'wheel',
+                        delta: event.deltaX * scrollMultiplier,
+                        buttonsPressed: this.mouseButtonsPressed
+                        // No x, y in relative mode - backend uses lastX/lastY or zeros
+                    });
+                }
             }
         } catch (error) {
             console.error('Error sending mouse wheel:', error);
