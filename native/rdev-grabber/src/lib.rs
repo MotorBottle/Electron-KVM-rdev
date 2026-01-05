@@ -188,6 +188,8 @@ fn try_handle_keyboard(
     key: Key,
     is_press: bool,
 ) -> Option<Event> {
+    // Track whether we need to reinterpret a phantom KeyRelease as a KeyPress
+    let mut effective_is_press = is_press;
     #[cfg(target_os = "windows")]
     let scan_code = event.position_code;
     #[cfg(target_os = "macos")]
@@ -199,9 +201,9 @@ fn try_handle_keyboard(
             Key::ControlLeft | Key::ControlRight => {
                 if !CTRL_HELD.load(Ordering::SeqCst) {
                     // Spurious KeyRelease when not held = phantom press
-                    eprintln!("⚠️  Detected phantom Ctrl KeyRelease");
+                    eprintln!("⚠️  Detected phantom Ctrl KeyRelease - treating as KeyPress");
                     CTRL_PHANTOM.store(true, Ordering::SeqCst);
-                    // Don't modify CTRL_HELD - keep it as is
+                    effective_is_press = true; // Reinterpret as press so HID sees the down event
                 } else if CTRL_PHANTOM.load(Ordering::SeqCst) {
                     // Real KeyRelease after phantom - clear phantom
                     eprintln!("✓ Real Ctrl KeyRelease detected (clearing phantom)");
@@ -210,35 +212,28 @@ fn try_handle_keyboard(
             }
             Key::Alt | Key::AltGr => {
                 if !ALT_HELD.load(Ordering::SeqCst) {
-                    eprintln!("⚠️  Detected phantom Alt KeyRelease");
+                    eprintln!("⚠️  Detected phantom Alt KeyRelease - treating as KeyPress");
                     ALT_PHANTOM.store(true, Ordering::SeqCst);
-                    // Don't modify ALT_HELD - keep it as is
+                    effective_is_press = true; // Reinterpret as press so HID sees the down event
                 } else if ALT_PHANTOM.load(Ordering::SeqCst) {
                     eprintln!("✓ Real Alt KeyRelease detected (clearing phantom)");
                     ALT_PHANTOM.store(false, Ordering::SeqCst);
                 }
             }
-            _ => {
-                // Any non-Ctrl/Alt key release clears phantoms
-                CTRL_PHANTOM.store(false, Ordering::SeqCst);
-                ALT_PHANTOM.store(false, Ordering::SeqCst);
-            }
+            _ => {}
         }
     } else {
-        // On KeyPress, clear phantoms for non-Ctrl/Alt keys
-        if !matches!(key, Key::ControlLeft | Key::ControlRight | Key::Alt | Key::AltGr) {
-            CTRL_PHANTOM.store(false, Ordering::SeqCst);
-            ALT_PHANTOM.store(false, Ordering::SeqCst);
-        }
+        // Do not clear phantoms on unrelated KeyPress; keep the synthetic press "held"
+        // until we see a real release for the same modifier.
     }
 
-    update_modifiers(&key, is_press);
+    update_modifiers(&key, effective_is_press);
     // Use our own USB HID mapping - rdev's usb_hid values are often incorrect
     let usb_hid = key_to_usb_hid(&key);
     emit_event(
         tsfn,
         &key,
-        is_press,
+        effective_is_press,
         event.platform_code as u32,
         event.position_code,
         usb_hid,
@@ -251,25 +246,25 @@ fn try_handle_keyboard(
 
     #[cfg(target_os = "windows")]
     match scan_code {
-        0x1D | 0x021D => rdev::set_modifier(Key::ControlLeft, is_press),
-        0xE01D => rdev::set_modifier(Key::ControlRight, is_press),
-        0x2A => rdev::set_modifier(Key::ShiftLeft, is_press),
-        0x36 => rdev::set_modifier(Key::ShiftRight, is_press),
-        0x38 => rdev::set_modifier(Key::Alt, is_press),
-        0xE038 => rdev::set_modifier(Key::AltGr, is_press),
-        0xE05B => rdev::set_modifier(Key::MetaLeft, is_press),
-        0xE05C => rdev::set_modifier(Key::MetaRight, is_press),
+        0x1D | 0x021D => rdev::set_modifier(Key::ControlLeft, effective_is_press),
+        0xE01D => rdev::set_modifier(Key::ControlRight, effective_is_press),
+        0x2A => rdev::set_modifier(Key::ShiftLeft, effective_is_press),
+        0x36 => rdev::set_modifier(Key::ShiftRight, effective_is_press),
+        0x38 => rdev::set_modifier(Key::Alt, effective_is_press),
+        0xE038 => rdev::set_modifier(Key::AltGr, effective_is_press),
+        0xE05B => rdev::set_modifier(Key::MetaLeft, effective_is_press),
+        0xE05C => rdev::set_modifier(Key::MetaRight, effective_is_press),
         _ => {}
     }
 
     #[cfg(target_os = "windows")]
     if scan_code == 0x021D {
-        IS_ALT_GR_DOWN.store(is_press, Ordering::SeqCst);
+        IS_ALT_GR_DOWN.store(effective_is_press, Ordering::SeqCst);
     }
 
     #[cfg(target_os = "macos")]
     if platform_code == rdev::kVK_Option {
-        IS_LEFT_OPTION_DOWN.store(is_press, Ordering::SeqCst);
+        IS_LEFT_OPTION_DOWN.store(effective_is_press, Ordering::SeqCst);
     }
 
     if KEYBOARD_HOOKED.load(Ordering::SeqCst) {
