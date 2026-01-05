@@ -2,7 +2,6 @@ const { app, BrowserWindow, ipcMain, Menu, globalShortcut } = require('electron'
 const fs = require('fs');
 const path = require('path');
 const HIDManager = require('./hid-manager');
-const VideoServer = require('./video-server');
 
 let rdevGrabber = null;
 let rdevRunning = false;
@@ -193,7 +192,6 @@ if (app && app.commandLine) {
 
 let mainWindow;
 let hidManager;
-let videoServer;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -282,9 +280,6 @@ app.whenReady().then(() => {
   // Initialize HID manager
   hidManager = new HIDManager();
 
-  // Initialize video server
-  videoServer = new VideoServer();
-
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -342,24 +337,9 @@ app.on('before-quit', () => {
   if (hidManager) {
     hidManager.close();
   }
-  if (videoServer) {
-    videoServer.stop();
-  }
 });
 
 // IPC handlers
-ipcMain.handle('get-video-devices', async () => {
-  return videoServer.getVideoDevices();
-});
-
-ipcMain.handle('start-video-stream', async (event, deviceId) => {
-  return videoServer.startStream(deviceId);
-});
-
-ipcMain.handle('stop-video-stream', async () => {
-  return videoServer.stopStream();
-});
-
 ipcMain.handle('get-hid-devices', async () => {
   return hidManager.getDevices();
 });
@@ -381,7 +361,7 @@ ipcMain.handle('send-keyboard-event', async (event, data) => {
 });
 
 ipcMain.handle('get-stream-url', async () => {
-  return videoServer.getStreamUrl();
+  return null;
 });
 
 ipcMain.handle('toggle-fullscreen', async () => {

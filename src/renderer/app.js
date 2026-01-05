@@ -159,6 +159,7 @@ class KVMClient {
             const savedVideoDeviceLabel = localStorage.getItem('kvmVideoDeviceLabel');
             const savedResolution = localStorage.getItem('kvmResolution');
             const savedFPS = localStorage.getItem('kvmFPS');
+            const savedVideoPrefsByDevice = localStorage.getItem('kvmVideoPrefsByDevice');
             
             this.savedVideoPreferences = {
                 deviceId: savedVideoDevice,
@@ -166,6 +167,7 @@ class KVMClient {
                 resolution: savedResolution,
                 fps: savedFPS
             };
+            this.videoPrefsByDevice = savedVideoPrefsByDevice ? JSON.parse(savedVideoPrefsByDevice) : {};
             
             // Load quit key combination preference
             const savedQuitKeyCombo = localStorage.getItem('kvmQuitKeyCombo');
@@ -187,6 +189,7 @@ class KVMClient {
                 mouseMode: this.mouseMode, 
                 reverseScroll: this.reverseScroll,
                 videoPreferences: this.savedVideoPreferences,
+                videoPrefsByDevice: this.videoPrefsByDevice,
                 quitKeyCombo: this.quitKeyCombo
             });
         } catch (error) {
@@ -211,6 +214,14 @@ class KVMClient {
             const deviceLabel = this.videoDevicesSelect.selectedOptions[0]?.textContent || '';
             const resolution = this.resolutionSelect.value;
             const fps = this.fpsSelect.value;
+
+            // Persist per-device preferences (keyed by deviceId or label fallback)
+            const deviceKey = deviceId || deviceLabel || 'default';
+            if (!this.videoPrefsByDevice) {
+                this.videoPrefsByDevice = {};
+            }
+            this.videoPrefsByDevice[deviceKey] = { deviceId, deviceLabel, resolution, fps };
+            localStorage.setItem('kvmVideoPrefsByDevice', JSON.stringify(this.videoPrefsByDevice));
             
             if (deviceId) {
                 localStorage.setItem('kvmVideoDevice', deviceId);
@@ -227,6 +238,14 @@ class KVMClient {
         } catch (error) {
             console.error('Error saving video preferences:', error);
         }
+    }
+
+    getDevicePreferences(deviceId, deviceLabel) {
+        const deviceKey = deviceId || deviceLabel;
+        if (deviceKey && this.videoPrefsByDevice && this.videoPrefsByDevice[deviceKey]) {
+            return this.videoPrefsByDevice[deviceKey];
+        }
+        return this.savedVideoPreferences;
     }
 
     applyLoadedSettings() {
@@ -711,9 +730,13 @@ class KVMClient {
     async buildResolutionFPS() {
         this.resolutionSelect.innerHTML = '<option value="">Select Resolution</option>';
         this.fpsSelect.innerHTML = '<option value="">Select FPS</option>';
-        
         const deviceId = this.videoDevicesSelect.value;
         if (!deviceId) return;
+        const deviceLabel = this.videoDevicesSelect.selectedOptions[0]?.textContent || '';
+        const devicePrefs = this.getDevicePreferences(deviceId, deviceLabel);
+
+        // Track FPS options per resolution to drop unusable ones
+        this.fpsOptionsByResolution = {};
 
         try {
             // Get device capabilities
@@ -725,15 +748,36 @@ class KVMClient {
             const capabilities = track.getCapabilities();
             tempStream.getTracks().forEach(t => t.stop());
 
-            // Build resolution list
-            const availableResolutions = capabilities.width?.max 
-                ? this.COMMON_RESOLUTIONS.filter(r => 
-                    r[0] <= capabilities.width.max && r[1] <= capabilities.height.max)
-                : this.COMMON_RESOLUTIONS.slice();
+            // Build resolution list using device-reported max first, then fall back to common set
+            const maxWidth = capabilities.width?.max;
+            const maxHeight = capabilities.height?.max;
+            const availableResolutions = [];
+            const resolutionSet = new Set();
 
-            if (!availableResolutions.length) {
-                availableResolutions.push([capabilities.width.max, capabilities.height.max]);
+            const addResolution = (w, h) => {
+                if (!w || !h) return;
+                const key = `${w}x${h}`;
+                if (resolutionSet.has(key)) return;
+                resolutionSet.add(key);
+                availableResolutions.push([w, h]);
+            };
+
+            // Prefer the device's maximum capability as the first entry
+            addResolution(maxWidth, maxHeight);
+
+            // Add common resolutions that fit within the device limits (if known)
+            this.COMMON_RESOLUTIONS.forEach(([w, h]) => {
+                if (maxWidth && maxHeight && (w > maxWidth || h > maxHeight)) return;
+                addResolution(w, h);
+            });
+
+            // Fallback: if nothing was added but max is known, ensure it's present
+            if (!availableResolutions.length && maxWidth && maxHeight) {
+                addResolution(maxWidth, maxHeight);
             }
+
+            // Sort by pixel count descending so the highest option is first
+            availableResolutions.sort((a, b) => (b[0] * b[1]) - (a[0] * a[1]));
 
             availableResolutions.forEach(resolution => {
                 const option = document.createElement('option');
@@ -745,37 +789,43 @@ class KVMClient {
 
             // Try to restore saved resolution preference first
             let resolutionSelected = false;
-            if (this.savedVideoPreferences?.resolution) {
-                const savedResolutionOption = this.resolutionSelect.querySelector(`option[value="${this.savedVideoPreferences.resolution}"]`);
+            if (devicePrefs?.resolution) {
+                const savedResolutionOption = this.resolutionSelect.querySelector(`option[value="${devicePrefs.resolution}"]`);
                 if (savedResolutionOption) {
-                    this.resolutionSelect.value = this.savedVideoPreferences.resolution;
+                    this.resolutionSelect.value = devicePrefs.resolution;
                     resolutionSelected = true;
-                    console.log('Restored saved resolution:', this.savedVideoPreferences.resolution);
+                    console.log('Restored saved resolution:', devicePrefs.resolution);
                 }
             }
             
-            // Auto-select 1920x1080 if available and no saved preference
-            if (!resolutionSelected) {
-                const preferred = this.resolutionSelect.querySelector('option[value="1920x1080"]');
-                if (preferred) {
-                    this.resolutionSelect.value = '1920x1080';
-                } else {
-                    this.resolutionSelect.selectedIndex = 1;
-                }
+            // Auto-select the highest resolution (first option) when no saved preference
+            if (!resolutionSelected && this.resolutionSelect.options.length > 1) {
+                this.resolutionSelect.selectedIndex = 1;
             }
 
-            await this.buildFPS();
+            await this.buildFPS(true);
         } catch (error) {
             console.error('Error building resolution list:', error);
+            // Fallback to a basic list if capabilities fetch fails
+            this.COMMON_RESOLUTIONS.forEach(resolution => {
+                const option = document.createElement('option');
+                const value = `${resolution[0]}x${resolution[1]}`;
+                option.value = value;
+                option.textContent = `${resolution[0]}×${resolution[1]}`;
+                this.resolutionSelect.appendChild(option);
+            });
+            this.resolutionSelect.selectedIndex = 1;
         }
     }
 
-    async buildFPS() {
+    async buildFPS(filteringResolutions = false) {
         this.fpsSelect.innerHTML = '<option value="">Select FPS</option>';
         
         const deviceId = this.videoDevicesSelect.value;
         const resolution = this.resolutionSelect.value;
         if (!deviceId || !resolution) return;
+        const deviceLabel = this.videoDevicesSelect.selectedOptions[0]?.textContent || '';
+        const devicePrefs = this.getDevicePreferences(deviceId, deviceLabel);
 
         try {
             const [width, height] = resolution.split('x').map(Number);
@@ -793,12 +843,20 @@ class KVMClient {
             const capabilities = track.getCapabilities();
             tempStream.getTracks().forEach(t => t.stop());
 
-            // Build FPS list
-            const maxFPS = capabilities.frameRate?.max || 60;
-            const availableFPS = [120, 90, 60, 30, 24, 15].filter(fps => fps <= Math.round(maxFPS));
-            
+            // Build FPS list with robust fallbacks
+            const frameRateCaps = capabilities.frameRate || {};
+            const maxFPSRaw = Number.isFinite(frameRateCaps.max) ? frameRateCaps.max : null;
+            const minFPSRaw = Number.isFinite(frameRateCaps.min) ? frameRateCaps.min : null;
+            const candidates = [120, 90, 60, 30, 24, 15];
+            let availableFPS = candidates.filter(fps => {
+                const withinMax = !maxFPSRaw || fps <= Math.round(maxFPSRaw);
+                const withinMin = !minFPSRaw || fps >= Math.ceil(minFPSRaw);
+                return withinMax && withinMin;
+            });
+
             if (!availableFPS.length) {
-                availableFPS.push(Math.round(maxFPS));
+                const fallback = maxFPSRaw ? Math.max(minFPSRaw || 1, Math.min(Math.round(maxFPSRaw), 120)) : (minFPSRaw ? Math.max(Math.ceil(minFPSRaw), 60) : 60);
+                availableFPS.push(fallback);
             }
 
             availableFPS.forEach(fps => {
@@ -810,21 +868,34 @@ class KVMClient {
 
             // Try to restore saved FPS preference first
             let fpsSelected = false;
-            if (this.savedVideoPreferences?.fps) {
-                const savedFPS = parseInt(this.savedVideoPreferences.fps);
+            if (devicePrefs?.fps) {
+                const savedFPS = parseInt(devicePrefs.fps);
                 if (availableFPS.includes(savedFPS)) {
-                    this.fpsSelect.value = this.savedVideoPreferences.fps;
+                    this.fpsSelect.value = devicePrefs.fps;
                     fpsSelected = true;
-                    console.log('Restored saved FPS:', this.savedVideoPreferences.fps);
+                    console.log('Restored saved FPS:', devicePrefs.fps);
                 }
             }
             
-            // Auto-select 60 fps if available and no saved preference
+            // Auto-select highest available FPS when no saved preference
             if (!fpsSelected) {
-                if (availableFPS.includes(60)) {
-                    this.fpsSelect.value = '60';
-                } else {
-                    this.fpsSelect.selectedIndex = 1;
+                const highest = Math.max(...availableFPS);
+                this.fpsSelect.value = highest.toString();
+            }
+
+            // Cache available FPS for this resolution so resolutions with no FPS can be dropped
+            this.fpsOptionsByResolution[resolution] = availableFPS.slice();
+
+            // If we came from resolution build and FPS list ended up empty, drop the resolution
+            if (filteringResolutions && (!availableFPS || availableFPS.length === 0)) {
+                const optionToRemove = this.resolutionSelect.querySelector(`option[value="${resolution}"]`);
+                if (optionToRemove) {
+                    optionToRemove.remove();
+                    // Select highest remaining resolution if current was removed
+                    if (this.resolutionSelect.options.length > 1) {
+                        this.resolutionSelect.selectedIndex = 1;
+                        await this.buildFPS(false);
+                    }
                 }
             }
 
@@ -834,12 +905,21 @@ class KVMClient {
             }
         } catch (error) {
             console.error('Error building FPS list:', error);
+            // Fallback to a basic FPS list
+            [60, 30, 24].forEach(fps => {
+                const option = document.createElement('option');
+                option.value = fps.toString();
+                option.textContent = `${fps} fps`;
+                this.fpsSelect.appendChild(option);
+            });
+            this.fpsSelect.value = '60';
         }
     }
 
-    async startVideo() {
+    async startVideo(allowRetry = true) {
         const deviceId = this.videoDevicesSelect.value;
         const resolution = this.resolutionSelect.value;
+        const requestedResolution = resolution;
         const fps = this.fpsSelect.value;
 
         if (!deviceId) {
@@ -864,7 +944,7 @@ class KVMClient {
             const frameRate = Number(fps);
 
             // Configure getUserMedia to avoid external network connections
-            const constraints = {
+            const constraintsPrimary = {
                 video: {
                     deviceId: { exact: deviceId },
                     width: { exact: width },
@@ -874,23 +954,81 @@ class KVMClient {
                 audio: false
             };
 
-            // Try with ideal FPS first
+            const constraintsNoFps = {
+                video: {
+                    deviceId: { exact: deviceId },
+                    width: { exact: width },
+                    height: { exact: height }
+                },
+                audio: false
+            };
+
+            const constraintsRelaxed = {
+                video: {
+                    deviceId: { exact: deviceId },
+                    width: { ideal: width },
+                    height: { ideal: height }
+                },
+                audio: false
+            };
+
+            // Try primary, then progressively relax constraints
             let stream;
-            try {
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
-            } catch (error) {
-                console.warn('Ideal FPS failed, trying without FPS constraint:', error);
-                // Fallback without FPS constraint
-                const fallbackConstraints = {
-                    video: {
-                        deviceId: { exact: deviceId },
-                        width: { exact: width },
-                        height: { exact: height }
-                    },
-                    audio: false
-                };
-                stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+            let lastError = null;
+            const attempts = [constraintsPrimary, constraintsNoFps, constraintsRelaxed];
+            for (const attempt of attempts) {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia(attempt);
+                    break;
+                } catch (err) {
+                    lastError = err;
+                    console.warn('getUserMedia attempt failed, trying fallback:', err);
+                }
             }
+
+            if (!stream) {
+                throw lastError || new Error('Unable to start video stream with current settings');
+            }
+
+            // Reflect actual negotiated settings in the UI (in case constraints were relaxed)
+            const track = stream.getVideoTracks()[0];
+            const settings = track.getSettings ? track.getSettings() : {};
+            const actualWidth = settings.width;
+            const actualHeight = settings.height;
+            const actualFrameRate = settings.frameRate ? Math.round(settings.frameRate) : null;
+            const actualResolution = (actualWidth && actualHeight) ? `${actualWidth}x${actualHeight}` : null;
+
+            if (actualResolution && this.resolutionSelect.value !== actualResolution) {
+                let opt = this.resolutionSelect.querySelector(`option[value="${actualResolution}"]`);
+                if (!opt) {
+                    opt = document.createElement('option');
+                    opt.value = actualResolution;
+                    opt.textContent = `${actualWidth}×${actualHeight}`;
+                    // Insert after placeholder
+                    this.resolutionSelect.insertBefore(opt, this.resolutionSelect.options[1] || null);
+                }
+                this.resolutionSelect.value = actualResolution;
+                // Remove the requested resolution option if it differs from the actual negotiated one
+                if (requestedResolution && requestedResolution !== actualResolution) {
+                    const badOpt = this.resolutionSelect.querySelector(`option[value="${requestedResolution}"]`);
+                    if (badOpt) {
+                        badOpt.remove();
+                    }
+                }
+            }
+
+            if (actualFrameRate && this.fpsSelect.value !== actualFrameRate.toString()) {
+                let fpsOpt = this.fpsSelect.querySelector(`option[value="${actualFrameRate}"]`);
+                if (!fpsOpt) {
+                    fpsOpt = document.createElement('option');
+                    fpsOpt.value = actualFrameRate.toString();
+                    fpsOpt.textContent = `${actualFrameRate} fps`;
+                    this.fpsSelect.insertBefore(fpsOpt, this.fpsSelect.options[1] || null);
+                }
+                this.fpsSelect.value = actualFrameRate.toString();
+            }
+
+            this.saveVideoPreferences();
 
             this.videoElement.srcObject = stream;
             this.currentStream = stream;
@@ -901,11 +1039,38 @@ class KVMClient {
             this.startVideoBtn.disabled = true;
             this.stopVideoBtn.disabled = false;
 
-            console.log(`Video started: ${width}x${height} @ ${fps}fps`);
+            console.log(`Video started: ${actualResolution || `${width}x${height}`} @ ${actualFrameRate || fps}fps`);
         } catch (error) {
             console.error('Failed to start video stream:', error);
-            alert(`Failed to start video stream: ${error.message}`);
+
+            // If this resolution appears unsupported, drop it and try the next one once
+            if (allowRetry) {
+                const dropped = this.dropCurrentResolutionOption();
+                if (dropped && this.resolutionSelect.value) {
+                    console.warn('Retrying startVideo with next available resolution after failure');
+                    await this.buildFPS(true);
+                    return this.startVideo(false);
+                }
+            }
+
+            const message = error?.message || 'Unknown error';
+            alert(`Failed to start video stream: ${message}`);
         }
+    }
+
+    dropCurrentResolutionOption() {
+        const value = this.resolutionSelect.value;
+        if (!value) return false;
+        const option = this.resolutionSelect.querySelector(`option[value="${value}"]`);
+        if (option) {
+            option.remove();
+        }
+        // Select the next available actual option (index 1) if present
+        if (this.resolutionSelect.options.length > 1) {
+            this.resolutionSelect.selectedIndex = 1;
+            return true;
+        }
+        return false;
     }
 
     async stopVideo() {
