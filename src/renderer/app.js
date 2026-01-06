@@ -83,10 +83,8 @@ class KVMClient {
         this.disconnectHIDBtn = document.getElementById('disconnectHID');
         this.testMouseBtn = document.getElementById('testMouse');
         this.testKeyboardBtn = document.getElementById('testKeyboard');
-        this.testF3Btn = document.getElementById('testF3');
-        this.testF11Btn = document.getElementById('testF11');
-        this.resetKeysBtn = document.getElementById('resetKeys');
-        this.resetDevicesBtn = document.getElementById('resetDevices');
+        this.customResInput = document.getElementById('customResInput');
+        this.addCustomResBtn = document.getElementById('addCustomRes');
         
         // Quick control buttons
         this.sendCADBtn = document.getElementById('sendCAD');
@@ -160,6 +158,7 @@ class KVMClient {
             const savedResolution = localStorage.getItem('kvmResolution');
             const savedFPS = localStorage.getItem('kvmFPS');
             const savedVideoPrefsByDevice = localStorage.getItem('kvmVideoPrefsByDevice');
+            const savedCustomRes = localStorage.getItem('kvmCustomResolutions');
             
             this.savedVideoPreferences = {
                 deviceId: savedVideoDevice,
@@ -168,6 +167,15 @@ class KVMClient {
                 fps: savedFPS
             };
             this.videoPrefsByDevice = savedVideoPrefsByDevice ? JSON.parse(savedVideoPrefsByDevice) : {};
+            try {
+                this.customResolutions = savedCustomRes ? JSON.parse(savedCustomRes) : [];
+            } catch (err) {
+                console.warn('Failed to parse custom resolutions, resetting.', err);
+                this.customResolutions = [];
+            }
+            if (!Array.isArray(this.customResolutions)) {
+                this.customResolutions = [];
+            }
             
             // Load quit key combination preference
             const savedQuitKeyCombo = localStorage.getItem('kvmQuitKeyCombo');
@@ -190,6 +198,7 @@ class KVMClient {
                 reverseScroll: this.reverseScroll,
                 videoPreferences: this.savedVideoPreferences,
                 videoPrefsByDevice: this.videoPrefsByDevice,
+                customResolutions: this.customResolutions,
                 quitKeyCombo: this.quitKeyCombo
             });
         } catch (error) {
@@ -248,6 +257,43 @@ class KVMClient {
         return this.savedVideoPreferences;
     }
 
+    addCustomResolutionsFromInput() {
+        if (!this.customResInput) return;
+        const raw = this.customResInput.value || '';
+        const parsed = this.parseCustomResolutions(raw);
+        if (!parsed.length) {
+            alert('No valid resolutions found. Use formats like 1920x1200 or 2560*1440, separated by commas.');
+            return;
+        }
+        if (!this.customResolutions) this.customResolutions = [];
+
+        parsed.forEach(({ width, height }) => {
+            if (!this.customResolutions.find(r => r.width === width && r.height === height)) {
+                this.customResolutions.push({ width, height });
+            }
+        });
+
+        localStorage.setItem('kvmCustomResolutions', JSON.stringify(this.customResolutions));
+        this.buildResolutionFPS();
+    }
+
+    parseCustomResolutions(text) {
+        return (text || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean)
+            .map(entry => {
+                const normalized = entry.replace('×', 'x').replace('*', 'x').toLowerCase();
+                const parts = normalized.split('x');
+                if (parts.length !== 2) return null;
+                const w = parseInt(parts[0], 10);
+                const h = parseInt(parts[1], 10);
+                if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
+                return { width: w, height: h };
+            })
+            .filter(Boolean);
+    }
+
     applyLoadedSettings() {
         // Apply mouse mode setting to UI
         this.mouseModeToggle.checked = (this.mouseMode === 'relative');
@@ -259,6 +305,12 @@ class KVMClient {
         
         // Apply quit key combination setting to UI
         this.updateQuitKeyDisplay();
+
+        // Populate custom resolution input
+        if (this.customResInput) {
+            const list = (this.customResolutions || []).map(r => `${r.width}x${r.height}`).join(',');
+            this.customResInput.value = list;
+        }
         
         console.log('Applied loaded settings to UI');
     }
@@ -299,10 +351,7 @@ class KVMClient {
         // Test controls
         this.testMouseBtn.addEventListener('click', () => this.testMouse());
         this.testKeyboardBtn.addEventListener('click', () => this.testKeyboard());
-        this.testF3Btn.addEventListener('click', () => this.testFunctionKey('F3'));
-        this.testF11Btn.addEventListener('click', () => this.testFunctionKey('F11'));
-        this.resetKeysBtn.addEventListener('click', () => this.resetKeys());
-        this.resetDevicesBtn.addEventListener('click', () => this.resetDevices());
+        this.addCustomResBtn.addEventListener('click', () => this.addCustomResolutionsFromInput());
         
         // Quick control buttons
         this.sendCADBtn.addEventListener('click', () => this.sendCtrlAltDelete());
@@ -735,9 +784,6 @@ class KVMClient {
         const deviceLabel = this.videoDevicesSelect.selectedOptions[0]?.textContent || '';
         const devicePrefs = this.getDevicePreferences(deviceId, deviceLabel);
 
-        // Track FPS options per resolution to drop unusable ones
-        this.fpsOptionsByResolution = {};
-
         try {
             // Get device capabilities
             const tempStream = await navigator.mediaDevices.getUserMedia({
@@ -776,6 +822,11 @@ class KVMClient {
                 addResolution(maxWidth, maxHeight);
             }
 
+            // Append user-defined resolutions (best effort)
+            if (this.customResolutions && this.customResolutions.length) {
+                this.customResolutions.forEach(({ width, height }) => addResolution(width, height));
+            }
+
             // Sort by pixel count descending so the highest option is first
             availableResolutions.sort((a, b) => (b[0] * b[1]) - (a[0] * a[1]));
 
@@ -798,12 +849,18 @@ class KVMClient {
                 }
             }
             
-            // Auto-select the highest resolution (first option) when no saved preference
+            // Default to 1080p when available and no saved preference; otherwise pick first option
             if (!resolutionSelected && this.resolutionSelect.options.length > 1) {
-                this.resolutionSelect.selectedIndex = 1;
+                const prefer1080 = this.resolutionSelect.querySelector('option[value="1920x1080"]');
+                if (prefer1080) {
+                    this.resolutionSelect.value = '1920x1080';
+                    console.log('Defaulting to 1080p resolution');
+                } else {
+                    this.resolutionSelect.selectedIndex = 1;
+                }
             }
 
-            await this.buildFPS(true);
+            await this.buildFPS();
         } catch (error) {
             console.error('Error building resolution list:', error);
             // Fallback to a basic list if capabilities fetch fails
@@ -818,7 +875,7 @@ class KVMClient {
         }
     }
 
-    async buildFPS(filteringResolutions = false) {
+    async buildFPS() {
         this.fpsSelect.innerHTML = '<option value="">Select FPS</option>';
         
         const deviceId = this.videoDevicesSelect.value;
@@ -883,22 +940,6 @@ class KVMClient {
                 this.fpsSelect.value = highest.toString();
             }
 
-            // Cache available FPS for this resolution so resolutions with no FPS can be dropped
-            this.fpsOptionsByResolution[resolution] = availableFPS.slice();
-
-            // If we came from resolution build and FPS list ended up empty, drop the resolution
-            if (filteringResolutions && (!availableFPS || availableFPS.length === 0)) {
-                const optionToRemove = this.resolutionSelect.querySelector(`option[value="${resolution}"]`);
-                if (optionToRemove) {
-                    optionToRemove.remove();
-                    // Select highest remaining resolution if current was removed
-                    if (this.resolutionSelect.options.length > 1) {
-                        this.resolutionSelect.selectedIndex = 1;
-                        await this.buildFPS(false);
-                    }
-                }
-            }
-
             // Auto-start if this is initial setup
             if (this.fpsSelect.value && !this.videoConnected) {
                 setTimeout(() => this.startVideo(), 100);
@@ -916,7 +957,7 @@ class KVMClient {
         }
     }
 
-    async startVideo(allowRetry = true) {
+    async startVideo(allowFallback = true) {
         const deviceId = this.videoDevicesSelect.value;
         const resolution = this.resolutionSelect.value;
         const requestedResolution = resolution;
@@ -1008,12 +1049,13 @@ class KVMClient {
                     this.resolutionSelect.insertBefore(opt, this.resolutionSelect.options[1] || null);
                 }
                 this.resolutionSelect.value = actualResolution;
-                // Remove the requested resolution option if it differs from the actual negotiated one
+
+                // Inform user when the device negotiated a different resolution
                 if (requestedResolution && requestedResolution !== actualResolution) {
-                    const badOpt = this.resolutionSelect.querySelector(`option[value="${requestedResolution}"]`);
-                    if (badOpt) {
-                        badOpt.remove();
-                    }
+                    this.showAutoConnectNotification(
+                        `Requested ${requestedResolution}, device provided ${actualResolution}. Using ${actualResolution}.`,
+                        'error'
+                    );
                 }
             }
 
@@ -1043,34 +1085,36 @@ class KVMClient {
         } catch (error) {
             console.error('Failed to start video stream:', error);
 
-            // If this resolution appears unsupported, drop it and try the next one once
-            if (allowRetry) {
-                const dropped = this.dropCurrentResolutionOption();
-                if (dropped && this.resolutionSelect.value) {
-                    console.warn('Retrying startVideo with next available resolution after failure');
-                    await this.buildFPS(true);
-                    return this.startVideo(false);
+            const message = error?.message || 'Unknown error';
+
+            if (allowFallback) {
+                const nextResOption = this.getNextResolutionOption(resolution);
+                if (nextResOption) {
+                    const fallbackRes = nextResOption.value;
+                    this.showAutoConnectNotification(
+                        `Resolution ${resolution} failed (${message}). Falling back to ${fallbackRes}.`,
+                        'error'
+                    );
+                    this.resolutionSelect.value = fallbackRes;
+                    await this.buildFPS();
+                    if (this.fpsSelect.value) {
+                        return this.startVideo(false);
+                    }
                 }
             }
 
-            const message = error?.message || 'Unknown error';
             alert(`Failed to start video stream: ${message}`);
         }
     }
 
-    dropCurrentResolutionOption() {
-        const value = this.resolutionSelect.value;
-        if (!value) return false;
-        const option = this.resolutionSelect.querySelector(`option[value="${value}"]`);
-        if (option) {
-            option.remove();
+    getNextResolutionOption(currentValue) {
+        const options = Array.from(this.resolutionSelect?.options || []);
+        const startIndex = options.findIndex(opt => opt.value === currentValue);
+        const fromIndex = startIndex >= 0 ? startIndex + 1 : 1;
+        for (let i = fromIndex; i < options.length; i++) {
+            if (options[i].value) return options[i];
         }
-        // Select the next available actual option (index 1) if present
-        if (this.resolutionSelect.options.length > 1) {
-            this.resolutionSelect.selectedIndex = 1;
-            return true;
-        }
-        return false;
+        return null;
     }
 
     async stopVideo() {

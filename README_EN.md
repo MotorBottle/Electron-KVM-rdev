@@ -73,6 +73,11 @@ chmod +x KVM-Client-*.AppImage
 - Run the installer or use the portable version
 - No special permissions required
 
+### Display / Multi-monitor Limitations
+- **Absolute mode only**: single-display only; relative mouse mode is unaffected.
+- If the remote machine has multiple displays, set them to “Duplicate/Mirror” to the capture card, or ensure the capture card is grabbing the screen you intend to control.
+- If you see cursor/click offsets, first check whether multi-monitor extension is causing coordinate mismatch.
+
 ## Architecture & Technical Details
 
 ### Core Components

@@ -1030,6 +1030,26 @@ input:checked + .toggle-slider:before {
     margin-bottom: 4px;
 }
 
+.custom-resolution-controls {
+    margin-top: 20px;
+}
+
+.custom-res-input {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+#customResInput {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background-color: #2a2a2a;
+    color: #ffffff;
+}
+
 @media (max-width: 768px) {
     .quit-key-content {
         padding: 16px;

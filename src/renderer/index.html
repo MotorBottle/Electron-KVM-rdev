@@ -108,11 +108,16 @@
                     <div class="test-buttons">
                         <button id="testMouse" class="btn btn-test">Test Mouse Click</button>
                         <button id="testKeyboard" class="btn btn-test">Test Keyboard (A)</button>
-                        <button id="testF3" class="btn btn-test">Test F3</button>
-                        <button id="testF11" class="btn btn-test">Test F11</button>
-                        <button id="resetKeys" class="btn btn-warning">Reset All Keys</button>
-                        <button id="resetDevices" class="btn btn-warning">Reset Devices</button>
                     </div>
+                </div>
+
+                <div class="custom-resolution-controls">
+                    <h3>Custom Resolutions</h3>
+                    <div class="custom-res-input">
+                        <input id="customResInput" type="text" placeholder="1920x1200,2560x1440" />
+                        <button id="addCustomRes" class="btn btn-secondary">Add</button>
+                    </div>
+                    <p class="mode-description">Append to the resolution menu (no guarantee device supports them).</p>
                 </div>
             </div>
         </main>
@@ -121,7 +126,6 @@
             <div class="mouse-capture-info">
                 <div style="font-weight: 600; margin-bottom: 6px;">🎮 Control Mode Active</div>
                 <div style="margin-bottom: 4px;">Press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> to exit</div>
-                <div style="font-size: 11px; opacity: 0.7;">F3/F11 keys via test buttons</div>
             </div>
         </div>
 
