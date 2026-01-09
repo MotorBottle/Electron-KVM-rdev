@@ -28,6 +28,7 @@ class KVMClient {
                 customResTitle: 'Custom Resolutions',
                 customResDesc: 'Append to the resolution menu (no guarantee device supports them).',
                 addBtn: 'Add',
+                saveBtn: 'Save',
                 settings: 'Settings',
                 btnStartVideo: 'Start Video',
                 btnStopVideo: 'Stop Video',
@@ -86,6 +87,7 @@ class KVMClient {
                 customResTitle: '自定义分辨率',
                 customResDesc: '添加到分辨率列表（设备是否支持不保证）。',
                 addBtn: '添加',
+                saveBtn: '保存',
                 settings: '设置',
                 btnStartVideo: '开始视频',
                 btnStopVideo: '停止视频',
@@ -393,6 +395,13 @@ class KVMClient {
         if (!this.customResInput) return;
         const raw = this.customResInput.value || '';
         const parsed = this.parseCustomResolutions(raw);
+        if (!raw.trim().length) {
+            // Allow empty input to clear custom resolutions without warning
+            this.customResolutions = [];
+            localStorage.setItem('kvmCustomResolutions', JSON.stringify(this.customResolutions));
+            this.buildResolutionFPS();
+            return;
+        }
         if (!parsed.length) {
             alert(this.t('noValidRes'));
             return;
