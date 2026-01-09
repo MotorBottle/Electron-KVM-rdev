@@ -14,15 +14,15 @@
             </div>
             <div class="controls">
                 <div class="device-controls">
-                    <label>设备:</label>
+                    <label data-i18n="deviceLabel">Device:</label>
                     <select id="videoDevices" class="device-select">
                         <option value="">Select Video Device</option>
                     </select>
-                    <label>分辨率:</label>
+                    <label data-i18n="resolutionLabel">Resolution:</label>
                     <select id="resolutionSelect" class="device-select">
                         <option value="">Select Resolution</option>
                     </select>
-                    <label>FPS:</label>
+                    <label data-i18n="fpsLabel">FPS:</label>
                     <select id="fpsSelect" class="device-select">
                         <option value="">Select FPS</option>
                     </select>
@@ -61,17 +61,26 @@
                 </div>
                 <div class="status">
                     <div class="status-item">
-                        <span class="status-label">Video:</span>
+                        <span class="status-label" data-i18n="labelVideo">Video:</span>
                         <span id="videoStatus" class="status-value">Disconnected</span>
                     </div>
                     <div class="status-item">
-                        <span class="status-label">HID:</span>
+                        <span class="status-label" data-i18n="labelHID">HID:</span>
                         <span id="hidStatus" class="status-value">Disconnected</span>
                     </div>
                 </div>
+
+                <div class="language-controls">
+                    <h3 data-i18n="languageTitle">Language</h3>
+                    <select id="languageSelect" class="device-select">
+                        <option value="en">English</option>
+                        <option value="zh">中文</option>
+                    </select>
+                    <p class="mode-description" data-i18n="languageHint">Auto-detected by system language; you can override here.</p>
+                </div>
                 
                 <div class="mouse-mode-controls">
-                    <h3>Mouse Mode</h3>
+                    <h3 data-i18n="mouseModeTitle">Mouse Mode</h3>
                     <div class="mode-toggle">
                         <label class="toggle-switch">
                             <input type="checkbox" id="mouseModeToggle">
@@ -83,7 +92,7 @@
                 </div>
                 
                 <div class="scroll-controls">
-                    <h3>Scroll Direction</h3>
+                    <h3 data-i18n="scrollTitle">Scroll Direction</h3>
                     <div class="mode-toggle">
                         <label class="toggle-switch">
                             <input type="checkbox" id="scrollReverseToggle">
@@ -95,37 +104,37 @@
                 </div>
                 
                 <div class="quit-key-controls">
-                    <h3>Quit Key Combination</h3>
+                    <h3 data-i18n="quitKeyTitle">Quit Key Combination</h3>
                     <div class="quit-key-setting">
                         <span class="quit-key-display" id="quitKeyDisplay">Ctrl + Alt</span>
-                        <button id="changeQuitKey" class="btn btn-secondary">Change</button>
+                        <button id="changeQuitKey" class="btn btn-secondary" data-i18n="changeBtn">Change</button>
                     </div>
-                    <p class="mode-description">Key combination to exit control mode</p>
+                    <p class="mode-description" data-i18n="quitKeyDesc">Key combination to exit control mode</p>
                 </div>
                 
                 <div class="test-controls">
-                    <h3>Test Controls</h3>
+                    <h3 data-i18n="testTitle">Test Controls</h3>
                     <div class="test-buttons">
-                        <button id="testMouse" class="btn btn-test">Test Mouse Click</button>
-                        <button id="testKeyboard" class="btn btn-test">Test Keyboard (A)</button>
+                        <button id="testMouse" class="btn btn-test" data-i18n="testMouse">Test Mouse Click</button>
+                        <button id="testKeyboard" class="btn btn-test" data-i18n="testKeyboard">Test Keyboard (A)</button>
                     </div>
                 </div>
 
                 <div class="custom-resolution-controls">
-                    <h3>Custom Resolutions</h3>
+                    <h3 data-i18n="customResTitle">Custom Resolutions</h3>
                     <div class="custom-res-input">
                         <input id="customResInput" type="text" placeholder="1920x1200,2560x1440" />
-                        <button id="addCustomRes" class="btn btn-secondary">Add</button>
+                        <button id="addCustomRes" class="btn btn-secondary" data-i18n="addBtn">Add</button>
                     </div>
-                    <p class="mode-description">Append to the resolution menu (no guarantee device supports them).</p>
+                    <p class="mode-description" data-i18n="customResDesc">Append to the resolution menu (no guarantee device supports them).</p>
                 </div>
             </div>
         </main>
 
         <div class="mouse-capture-overlay" id="mouseCaptureOverlay" style="display: none;">
             <div class="mouse-capture-info">
-                <div style="font-weight: 600; margin-bottom: 6px;">🎮 Control Mode Active</div>
-                <div style="margin-bottom: 4px;">Press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> to exit</div>
+                <div style="font-weight: 600; margin-bottom: 6px;" data-i18n="controlModeTitle">🎮 Control Mode Active</div>
+                <div style="margin-bottom: 4px;" data-i18n="controlModeHint">Press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> to exit</div>
             </div>
         </div>
 

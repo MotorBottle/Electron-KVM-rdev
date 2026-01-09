@@ -1,5 +1,124 @@
 class KVMClient {
     constructor() {
+        this.I18N = {
+            en: {
+                labelVideo: 'Video:',
+                labelHID: 'HID:',
+                deviceLabel: 'Device:',
+                resolutionLabel: 'Resolution:',
+                fpsLabel: 'FPS:',
+                languageTitle: 'Language',
+                languageHint: 'Auto-detected by system language; you can override here.',
+                mouseModeTitle: 'Mouse Mode',
+                mouseModeAbsolute: 'Absolute',
+                mouseModeRelative: 'Relative',
+                mouseModeDescAbs: 'Click to send absolute mouse positions',
+                mouseModeDescRel: 'Move mouse for relative positioning',
+                scrollTitle: 'Scroll Direction',
+                scrollNatural: 'Natural',
+                scrollTraditional: 'Traditional',
+                scrollDescNatural: 'Natural scrolling (like macOS/mobile)',
+                scrollDescTraditional: 'Traditional scrolling (like Windows)',
+                quitKeyTitle: 'Quit Key Combination',
+                quitKeyDesc: 'Key combination to exit control mode',
+                changeBtn: 'Change',
+                testTitle: 'Test Controls',
+                testMouse: 'Test Mouse Click',
+                testKeyboard: 'Test Keyboard (A)',
+                customResTitle: 'Custom Resolutions',
+                customResDesc: 'Append to the resolution menu (no guarantee device supports them).',
+                addBtn: 'Add',
+                settings: 'Settings',
+                btnStartVideo: 'Start Video',
+                btnStopVideo: 'Stop Video',
+                btnRefresh: 'Refresh',
+                btnConnectHID: 'Connect HID',
+                btnDisconnectHID: 'Disconnect HID',
+                btnCtrlAltDel: 'Ctrl+Alt+Del',
+                btnVirtualKeyboard: 'Virtual Keyboard',
+                btnFullscreen: 'Fullscreen',
+                videoDisconnected: 'Disconnected',
+                videoConnected: 'Connected',
+                hidDisconnected: 'Disconnected',
+                hidConnected: 'Connected',
+                overlayActive: '🎮 Control Mode Active',
+                overlayHint: 'Press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> to exit',
+                noValidRes: 'No valid resolutions found. Use formats like 1920x1200 or 2560*1440, separated by commas.',
+                noWebRTC: 'Browser does not support WebRTC',
+                cameraPermission: 'Camera permission is required for video streaming',
+                noVideoDevices: 'No video devices detected',
+                selectVideoDevice: 'Please select a video device',
+                failedStartVideo: 'Failed to start video stream',
+                selectHIDDevice: 'Please select a HID device',
+                connectHIDFailed: 'Failed to connect HID device',
+                connectHIDError: 'Error connecting HID device',
+                refreshHIDError: 'Error refreshing HID connection',
+                connectHIDFirst: 'Please connect HID device first',
+                connectHIDFirstMouse: 'Please connect HID device first for mouse/keyboard control',
+                startVideoFirst: 'Please start video stream first',
+                fallbackResolution: 'Resolution {from} failed ({error}). Falling back to {to}.',
+                negotiatedResolution: 'Requested {from}, device provided {to}. Using {to}.'
+            },
+            zh: {
+                labelVideo: '视频：',
+                labelHID: 'HID：',
+                deviceLabel: '设备：',
+                resolutionLabel: '分辨率：',
+                fpsLabel: 'FPS：',
+                languageTitle: '语言',
+                languageHint: '默认根据系统语言，可在此手动切换。',
+                mouseModeTitle: '鼠标模式',
+                mouseModeAbsolute: '绝对',
+                mouseModeRelative: '相对',
+                mouseModeDescAbs: '点击直接定位鼠标坐标',
+                mouseModeDescRel: '移动发送相对偏移',
+                scrollTitle: '滚动方向',
+                scrollNatural: '自然',
+                scrollTraditional: '传统',
+                scrollDescNatural: '自然滚动（macOS/移动端样式）',
+                scrollDescTraditional: '传统滚动（Windows 样式）',
+                quitKeyTitle: '退出快捷键',
+                quitKeyDesc: '用于退出控制模式的组合键',
+                changeBtn: '修改',
+                testTitle: '测试',
+                testMouse: '测试鼠标点击',
+                testKeyboard: '测试键盘 (A)',
+                customResTitle: '自定义分辨率',
+                customResDesc: '添加到分辨率列表（设备是否支持不保证）。',
+                addBtn: '添加',
+                settings: '设置',
+                btnStartVideo: '开始视频',
+                btnStopVideo: '停止视频',
+                btnRefresh: '刷新',
+                btnConnectHID: '连接 HID',
+                btnDisconnectHID: '断开 HID',
+                btnCtrlAltDel: 'Ctrl+Alt+Del',
+                btnVirtualKeyboard: '虚拟键盘',
+                btnFullscreen: '全屏',
+                videoDisconnected: '未连接',
+                videoConnected: '已连接',
+                hidDisconnected: '未连接',
+                hidConnected: '已连接',
+                overlayActive: '🎮 控制模式已开启',
+                overlayHint: '按 <kbd>Ctrl</kbd> + <kbd>Alt</kbd> 退出',
+                noValidRes: '未找到有效分辨率。格式示例：1920x1200 或 2560*1440，使用逗号分隔。',
+                noWebRTC: '浏览器不支持 WebRTC',
+                cameraPermission: '需要相机权限才能开启视频流',
+                noVideoDevices: '未检测到视频设备',
+                selectVideoDevice: '请选择视频设备',
+                failedStartVideo: '启动视频流失败',
+                selectHIDDevice: '请选择 HID 设备',
+                connectHIDFailed: '连接 HID 设备失败',
+                connectHIDError: '连接 HID 设备出错',
+                refreshHIDError: '刷新 HID 连接出错',
+                connectHIDFirst: '请先连接 HID 设备',
+                connectHIDFirstMouse: '请先连接 HID 设备以控制鼠标/键盘',
+                startVideoFirst: '请先开启视频流',
+                fallbackResolution: '分辨率 {from} 失败（{error}），切换到 {to}。',
+                negotiatedResolution: '请求 {from}，设备返回 {to}，已使用 {to}。'
+            }
+        };
+
         this.videoConnected = false;
         this.hidConnected = false;
         this.manualHIDDisconnect = false; // Track if HID was manually disconnected
@@ -90,6 +209,7 @@ class KVMClient {
         this.sendCADBtn = document.getElementById('sendCAD');
         this.virtualKeyboardBtn = document.getElementById('virtualKeyboard');
         this.toggleFullscreenBtn = document.getElementById('toggleFullscreen');
+        this.languageSelect = document.getElementById('languageSelect');
         
         // Virtual keyboard elements
         this.virtualKeyboardModal = document.getElementById('virtualKeyboardModal');
@@ -140,6 +260,14 @@ class KVMClient {
 
     loadSettings() {
         try {
+            // Language
+            const savedLang = localStorage.getItem('kvmLanguage');
+            if (savedLang && this.I18N[savedLang]) {
+                this.language = savedLang;
+            } else {
+                this.language = (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+            }
+
             // Load mouse mode preference
             const savedMouseMode = localStorage.getItem('kvmMouseMode');
             if (savedMouseMode && (savedMouseMode === 'absolute' || savedMouseMode === 'relative')) {
@@ -196,6 +324,7 @@ class KVMClient {
             console.log('Loaded settings:', { 
                 mouseMode: this.mouseMode, 
                 reverseScroll: this.reverseScroll,
+                language: this.language,
                 videoPreferences: this.savedVideoPreferences,
                 videoPrefsByDevice: this.videoPrefsByDevice,
                 customResolutions: this.customResolutions,
@@ -211,6 +340,9 @@ class KVMClient {
             localStorage.setItem('kvmMouseMode', this.mouseMode);
             localStorage.setItem('kvmScrollReverse', this.reverseScroll.toString());
             localStorage.setItem('kvmQuitKeyCombo', JSON.stringify(this.quitKeyCombo));
+            if (this.language) {
+                localStorage.setItem('kvmLanguage', this.language);
+            }
             console.log('Saved settings:', { mouseMode: this.mouseMode, reverseScroll: this.reverseScroll, quitKeyCombo: this.quitKeyCombo });
         } catch (error) {
             console.error('Error saving settings:', error);
@@ -262,7 +394,7 @@ class KVMClient {
         const raw = this.customResInput.value || '';
         const parsed = this.parseCustomResolutions(raw);
         if (!parsed.length) {
-            alert('No valid resolutions found. Use formats like 1920x1200 or 2560*1440, separated by commas.');
+            alert(this.t('noValidRes'));
             return;
         }
         if (!this.customResolutions) this.customResolutions = [];
@@ -294,6 +426,74 @@ class KVMClient {
             .filter(Boolean);
     }
 
+    setLanguage(lang) {
+        if (!this.I18N[lang]) return;
+        this.language = lang;
+        localStorage.setItem('kvmLanguage', lang);
+        this.applyTranslations();
+        this.updateMouseModeDisplay();
+        this.updateScrollDirectionDisplay();
+    }
+
+    t(key, params = {}) {
+        const dict = this.I18N[this.language] || this.I18N.en;
+        let str = dict[key] || this.I18N.en[key] || key;
+        Object.entries(params).forEach(([k, v]) => {
+            str = str.replace(`{${k}}`, v);
+        });
+        return str;
+    }
+
+    applyTranslations() {
+        const dict = this.I18N[this.language] || this.I18N.en;
+        const mapIds = [
+            { id: 'startVideo', key: 'btnStartVideo' },
+            { id: 'stopVideo', key: 'btnStopVideo' },
+            { id: 'refreshDevices', key: 'btnRefresh' },
+            { id: 'connectHID', key: 'btnConnectHID' },
+            { id: 'disconnectHID', key: 'btnDisconnectHID' },
+            { id: 'sendCAD', key: 'btnCtrlAltDel' },
+            { id: 'virtualKeyboard', key: 'btnVirtualKeyboard' },
+            { id: 'toggleFullscreen', key: 'btnFullscreen' },
+            { id: 'sidebarToggle', key: 'settings' },
+            { id: 'mouseModeDescription', key: this.mouseMode === 'absolute' ? 'mouseModeDescAbs' : 'mouseModeDescRel' },
+            { id: 'mouseModeLabel', key: this.mouseMode === 'absolute' ? 'mouseModeAbsolute' : 'mouseModeRelative' },
+            { id: 'scrollDirectionDescription', key: this.reverseScroll ? 'scrollDescTraditional' : 'scrollDescNatural' },
+            { id: 'scrollDirectionLabel', key: this.reverseScroll ? 'scrollTraditional' : 'scrollNatural' },
+            { id: 'videoStatus', key: this.videoConnected ? 'videoConnected' : 'videoDisconnected' },
+            { id: 'hidStatus', key: this.hidConnected ? 'hidConnected' : 'hidDisconnected' }
+        ];
+        mapIds.forEach(({ id, key }) => {
+            const el = document.getElementById(id);
+            if (el && dict[key]) el.textContent = dict[key];
+        });
+
+        // data-i18n elements
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (dict[key]) {
+                if (el.getAttribute('data-i18n-html') === 'true') {
+                    el.innerHTML = dict[key];
+                } else {
+                    el.textContent = dict[key];
+                }
+            }
+        });
+
+        // Overlay text
+        const overlayTitle = document.querySelector('#mouseCaptureOverlay [data-i18n="controlModeTitle"]');
+        if (overlayTitle) overlayTitle.textContent = dict.overlayActive;
+        const overlayHint = document.querySelector('#mouseCaptureOverlay [data-i18n="controlModeHint"]');
+        if (overlayHint) overlayHint.innerHTML = dict.overlayHint;
+
+        // Custom res placeholder
+        if (this.customResInput) {
+            this.customResInput.placeholder = '1920x1200,2560x1440';
+        }
+
+        // Status labels via attributes already set; video/hid status updated elsewhere
+    }
+
     applyLoadedSettings() {
         // Apply mouse mode setting to UI
         this.mouseModeToggle.checked = (this.mouseMode === 'relative');
@@ -311,6 +511,12 @@ class KVMClient {
             const list = (this.customResolutions || []).map(r => `${r.width}x${r.height}`).join(',');
             this.customResInput.value = list;
         }
+
+        // Apply language to UI
+        if (this.languageSelect) {
+            this.languageSelect.value = this.language;
+        }
+        this.applyTranslations();
         
         console.log('Applied loaded settings to UI');
     }
@@ -352,6 +558,10 @@ class KVMClient {
         this.testMouseBtn.addEventListener('click', () => this.testMouse());
         this.testKeyboardBtn.addEventListener('click', () => this.testKeyboard());
         this.addCustomResBtn.addEventListener('click', () => this.addCustomResolutionsFromInput());
+
+        if (this.languageSelect) {
+            this.languageSelect.addEventListener('change', (e) => this.setLanguage(e.target.value));
+        }
         
         // Quick control buttons
         this.sendCADBtn.addEventListener('click', () => this.sendCtrlAltDelete());
@@ -562,7 +772,7 @@ class KVMClient {
     async initializeVideo() {
         // Check WebRTC support
         if (!navigator.mediaDevices?.enumerateDevices) {
-            alert('Browser does not support WebRTC');
+            alert(this.t('noWebRTC'));
             return;
         }
 
@@ -573,7 +783,7 @@ class KVMClient {
             await this.refreshVideoDevices();
         } catch (error) {
             console.error('Camera permission required:', error);
-            alert('Camera permission is required for video streaming');
+            alert(this.t('cameraPermission'));
         }
 
         await this.loadHIDDevices();
@@ -663,7 +873,7 @@ class KVMClient {
             });
 
             if (videoDevices.length === 0) {
-                alert('No video devices detected');
+                alert(this.t('noVideoDevices'));
                 return;
             }
 
@@ -964,7 +1174,7 @@ class KVMClient {
         const fps = this.fpsSelect.value;
 
         if (!deviceId) {
-            alert('Please select a video device');
+            alert(this.t('selectVideoDevice'));
             return;
         }
 
@@ -1092,7 +1302,7 @@ class KVMClient {
                 if (nextResOption) {
                     const fallbackRes = nextResOption.value;
                     this.showAutoConnectNotification(
-                        `Resolution ${resolution} failed (${message}). Falling back to ${fallbackRes}.`,
+                        this.t('fallbackResolution', { from: resolution, to: fallbackRes, error: message }),
                         'error'
                     );
                     this.resolutionSelect.value = fallbackRes;
@@ -1103,7 +1313,7 @@ class KVMClient {
                 }
             }
 
-            alert(`Failed to start video stream: ${message}`);
+            alert(`${this.t('failedStartVideo')}: ${message}`);
         }
     }
 
@@ -1194,7 +1404,7 @@ class KVMClient {
     async connectHID() {
         const devicePath = this.hidDevicesSelect.value;
         if (!devicePath) {
-            alert('Please select a HID device');
+            alert(this.t('selectHIDDevice'));
             return;
         }
 
@@ -1208,11 +1418,11 @@ class KVMClient {
                 // Stop monitoring when successfully connected
                 this.stopHIDMonitoring();
             } else {
-                alert(`Failed to connect HID device: ${result.error}`);
+                alert(`${this.t('connectHIDFailed')}: ${result.error}`);
             }
         } catch (error) {
             console.error('Error connecting HID:', error);
-            alert('Error connecting HID device');
+            alert(this.t('connectHIDError'));
         }
     }
 
@@ -1278,13 +1488,13 @@ class KVMClient {
             this.updateHIDStatus();
         } catch (error) {
             console.error('Error refreshing HID:', error);
-            alert('Error refreshing HID connection');
+            alert(this.t('refreshHIDError'));
         }
     }
 
     async testMouse() {
         if (!this.hidConnected) {
-            alert('Please connect HID device first');
+            alert(this.t('connectHIDFirst'));
             return;
         }
 
@@ -1307,7 +1517,7 @@ class KVMClient {
 
     async testKeyboard() {
         if (!this.hidConnected) {
-            alert('Please connect HID device first');
+            alert(this.t('connectHIDFirst'));
             return;
         }
 
@@ -1330,7 +1540,7 @@ class KVMClient {
 
     async testFunctionKey(key) {
         if (!this.hidConnected) {
-            alert('Please connect HID device first');
+            alert(this.t('connectHIDFirst'));
             return;
         }
 
@@ -1363,7 +1573,7 @@ class KVMClient {
                 console.error('Error resetting keyboard:', error);
             }
         } else {
-            alert('Please connect HID device first');
+            alert(this.t('connectHIDFirst'));
         }
     }
 
@@ -1380,12 +1590,12 @@ class KVMClient {
 
     async toggleMouseCapture() {
         if (!this.hidConnected) {
-            alert('Please connect HID device first for mouse/keyboard control');
+            alert(this.t('connectHIDFirstMouse'));
             return;
         }
 
         if (!this.videoConnected) {
-            alert('Please start video stream first');
+            alert(this.t('startVideoFirst'));
             return;
         }
 
@@ -1653,12 +1863,12 @@ class KVMClient {
 
 
     updateVideoStatus() {
-        this.videoStatus.textContent = this.videoConnected ? 'Connected' : 'Disconnected';
+        this.videoStatus.textContent = this.videoConnected ? this.t('videoConnected') : this.t('videoDisconnected');
         this.videoStatus.setAttribute('data-status', this.videoConnected ? 'connected' : 'disconnected');
     }
 
     updateHIDStatus() {
-        this.hidStatus.textContent = this.hidConnected ? 'Connected' : 'Disconnected';
+        this.hidStatus.textContent = this.hidConnected ? this.t('hidConnected') : this.t('hidDisconnected');
         this.hidStatus.setAttribute('data-status', this.hidConnected ? 'connected' : 'disconnected');
         
         // Update connect/disconnect button states
@@ -1688,12 +1898,12 @@ class KVMClient {
 
     updateMouseModeDisplay() {
         if (this.mouseMode === 'absolute') {
-            this.mouseModeLabel.textContent = 'Absolute';
-            this.mouseModeDescription.textContent = 'Click to send absolute mouse positions';
+            this.mouseModeLabel.textContent = this.t('mouseModeAbsolute');
+            this.mouseModeDescription.textContent = this.t('mouseModeDescAbs');
             this.mouseModeToggle.checked = false;
         } else {
-            this.mouseModeLabel.textContent = 'Relative';
-            this.mouseModeDescription.textContent = 'Move mouse for relative positioning';
+            this.mouseModeLabel.textContent = this.t('mouseModeRelative');
+            this.mouseModeDescription.textContent = this.t('mouseModeDescRel');
             this.mouseModeToggle.checked = true;
         }
     }
@@ -1809,12 +2019,12 @@ class KVMClient {
 
     updateScrollDirectionDisplay() {
         if (this.reverseScroll) {
-            this.scrollDirectionLabel.textContent = 'Reversed';
-            this.scrollDirectionDescription.textContent = 'Traditional scrolling (like Windows)';
+            this.scrollDirectionLabel.textContent = this.t('scrollTraditional');
+            this.scrollDirectionDescription.textContent = this.t('scrollDescTraditional');
             this.scrollReverseToggle.checked = true;
         } else {
-            this.scrollDirectionLabel.textContent = 'Natural';
-            this.scrollDirectionDescription.textContent = 'Natural scrolling (like macOS/mobile)';
+            this.scrollDirectionLabel.textContent = this.t('scrollNatural');
+            this.scrollDirectionDescription.textContent = this.t('scrollDescNatural');
             this.scrollReverseToggle.checked = false;
         }
     }
@@ -1833,7 +2043,7 @@ class KVMClient {
 
     async sendCtrlAltDelete() {
         if (!this.hidConnected) {
-            alert('Please connect HID device first');
+            alert(this.t('connectHIDFirst'));
             return;
         }
 
@@ -2010,7 +2220,7 @@ class KVMClient {
 
     async handleVirtualKey(button) {
         if (!this.hidConnected) {
-            alert('Please connect HID device first');
+            alert(this.t('connectHIDFirst'));
             return;
         }
 

@@ -1050,6 +1050,10 @@ input:checked + .toggle-slider:before {
     color: #ffffff;
 }
 
+.language-controls {
+    margin-top: 12px;
+}
+
 @media (max-width: 768px) {
     .quit-key-content {
         padding: 16px;
